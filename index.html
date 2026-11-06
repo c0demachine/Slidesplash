@@ -61,13 +61,15 @@
   #packIcon{width:96px;height:96px;margin:0 auto 6px;image-rendering:pixelated}
   .secretglow{background:linear-gradient(90deg,#111,#5a189a,#111,#19e3c4,#111);background-size:300% 100%;animation:shine 2s linear infinite}
   @keyframes shine{to{background-position:300% 0}}
+  @media (max-width:420px){#hud{padding:10px 8px;font-size:15px} #hud .group{gap:4px} .pill{padding:7px 9px;white-space:nowrap} .iconbtn{width:36px;height:36px;font-size:17px}}
+  .iconbtn.new{background:#ff5a8a;box-shadow:0 0 0 3px #fff}
   #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-weight:800;padding:8px 16px;border-radius:999px;display:none}
 </style>
 </head>
 <body>
 <div id="hud">
   <div class="group"><button class="iconbtn" id="hudMenu" aria-label="Menu">≡</button><span class="pill" id="hudLevel">Level 1</span></div>
-  <div class="group"><span class="pill coins" id="hudCoins" style="color:#ffe27a">● 0</span><button class="iconbtn" id="hudSound" aria-label="Sound on or off">🔊</button><button class="iconbtn" id="hudRetry" aria-label="Restart level">↻</button></div>
+  <div class="group"><span class="pill coins" id="hudCoins" style="color:#ffe27a">● 0</span><button class="iconbtn" id="hudUpdate" aria-label="Check for updates">⬆</button><button class="iconbtn" id="hudSound" aria-label="Sound on or off">🔊</button><button class="iconbtn" id="hudRetry" aria-label="Restart level">↻</button></div>
 </div>
 <button class="steer" id="btnL" aria-label="Steer left">◀</button>
 <button class="steer" id="btnR" aria-label="Steer right">▶</button>
@@ -83,6 +85,7 @@
   <button class="big" id="mShop">Shop</button>
   <button class="big" id="mPass" style="background:#9b5cff;box-shadow:0 5px 0 #6a35c4">Slide Pass</button>
   <div class="row"><button class="big gray" id="mSound">Sound: On</button><button class="big gray" id="mMusic">Music: On</button></div>
+  <button class="big gray" id="mUpdate">Check for updates</button>
 </div></div>
 
 <div class="overlay" id="scrLevels"><div class="card">
@@ -152,6 +155,13 @@
   <p id="xpText" style="margin:6px 0 4px"></p>
   <button class="big green" id="wNext">Next level</button>
   <div class="row"><button class="big" id="wReplay">Replay</button><button class="big gray" id="wMenu">Menu</button></div>
+</div></div>
+
+<div class="overlay" id="scrUpdate"><div class="card">
+  <h2 id="updTitle">Checking for updates…</h2>
+  <p id="updText">Your game is paused.</p>
+  <button class="big green" id="uYes">Update</button>
+  <button class="big gray" id="uNo">Keep playing</button>
 </div></div>
 
 <div class="overlay" id="scrLose"><div class="card">
@@ -1682,6 +1692,7 @@ bindSteer($('btnR'), 'right');
 $('btnJ').addEventListener('pointerdown', e => { e.preventDefault(); $('btnJ').classList.add('on'); doJump(); });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('btnJ').addEventListener(ev, () => $('btnJ').classList.remove('on')));
 addEventListener('keydown', e => {
+  if (paused) return;
   if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') input.kl = true;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') input.kr = true;
   if ((e.key === ' ' || e.key === 'Enter') && mode === 'ready') { e.preventDefault(); go(); return; }
@@ -1927,11 +1938,79 @@ function refreshDeath() {
   b.disabled = save.revives <= 0; b.style.opacity = save.revives > 0 ? 1 : 0.45;
 }
 
+// ---------- Updates: pause, check if a newer version is online, reload but keep your stuff ----------
+// There is an update if the page on the server no longer contains the code running right now,
+// or if it changed since the copy we fetched when the game opened.
+const PAGE_CODE = [document.querySelector('style').textContent, document.currentScript.textContent];
+const RESUME_KEY = 'slideSplash.resume'; // which level to reopen after an update reload (this tab only)
+let paused = false, pauseFrom = null, updCheck = 0, updFound = false, lastUpdCheck = 0, baseHTML = null;
+async function updateAvailable() {
+  lastUpdCheck = Date.now();
+  const res = await fetch(location.href, {cache: 'no-store'});
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const html = (await res.text()).replace(/\r\n?/g, '\n');
+  if (baseHTML === null) baseHTML = html;
+  return html !== baseHTML || !PAGE_CODE.every(c => html.includes(c));
+}
+updateAvailable().then(found => { if (found) markUpdate(); }).catch(() => {});
+function setUpdateCard(title, text, canUpdate, noLabel) {
+  $('updTitle').textContent = title; $('updText').textContent = text;
+  $('uYes').style.display = canUpdate ? 'block' : 'none'; $('uNo').textContent = noLabel;
+}
+function markUpdate() {
+  updFound = true; $('hudUpdate').classList.add('new'); $('hudUpdate').setAttribute('aria-label', 'Update available');
+  $('mUpdate').textContent = 'Update available!';
+}
+function openUpdate() {
+  if (paused) return;
+  paused = true;
+  const open = document.querySelector('.overlay.show');
+  pauseFrom = {overlay: open ? open.id : null, controls: $('hud').style.display === 'flex'};
+  input.left = input.right = input.kl = input.kr = false; jumpQueued = false;
+  Sfx.slide('off', 0); showControls(false);
+  setUpdateCard('Checking for updates…', 'Your game is paused.', false, 'Keep playing');
+  show('scrUpdate');
+  const id = ++updCheck;
+  updateAvailable().then(found => {
+    if (!paused || id !== updCheck) return;
+    if (found) { markUpdate(); setUpdateCard('Would you like to update?', 'A new version of Slide Splash is ready. Your coins, boats, babies, upgrades and levels are saved, so you won\'t lose anything.', true, 'Not now'); }
+    else setUpdateCard('You\'re up to date!', 'You already have the newest version of Slide Splash.', false, 'Keep playing');
+  }).catch(() => {
+    if (!paused || id !== updCheck) return;
+    setUpdateCard('Couldn\'t check for updates', 'Make sure you\'re online and try again later.', false, 'Keep playing');
+  });
+}
+function closeUpdate() {
+  if (!paused) return;
+  paused = false; acc = 0; last = performance.now();
+  show(pauseFrom.overlay); showControls(pauseFrom.controls);
+}
+function doUpdate() {
+  persist();
+  // reopen the level you were on (or the next one if you just won it) after the reload
+  const at = mode === 'won' ? levelIdx + 1 : mode === 'menu' ? -1 : levelIdx;
+  try { sessionStorage.setItem(RESUME_KEY, String(at)); } catch (e) {}
+  location.reload();
+}
+$('hudUpdate').onclick = openUpdate;
+$('mUpdate').onclick = openUpdate;
+$('uYes').onclick = doUpdate;
+$('uNo').onclick = closeUpdate;
+// Quietly look for updates every few minutes and light up the ⬆ button if one is found.
+setInterval(() => {
+  if (updFound || paused || document.hidden || Date.now() - lastUpdCheck < 4 * 60 * 1000) return;
+  updateAvailable().then(found => { if (found && !updFound) { markUpdate(); toast('Update available! Tap ⬆'); } }).catch(() => {});
+}, 60 * 1000);
+// Extra safety: save again whenever the tab is hidden or closed.
+addEventListener('pagehide', persist);
+document.addEventListener('visibilitychange', () => { if (document.hidden) persist(); });
+
 // ---------- Main loop ----------
 let acc = 0, last = performance.now();
 function frame(t) {
   requestAnimationFrame(frame);
   const dt = Math.min((t - last) / 1000, 0.1); last = t;
+  if (paused) { renderer.render(scene, cam); return; }
   if (mode === 'play') {
     acc += dt;
     while (acc >= DT) { acc -= DT; physTick(); if (mode !== 'play') break; }
@@ -1941,6 +2020,16 @@ function frame(t) {
   renderer.render(scene, cam);
 }
 openMenu();
+// Just reloaded for an update? Go back to the level you were on.
+try {
+  const r = sessionStorage.getItem(RESUME_KEY);
+  if (r !== null) {
+    sessionStorage.removeItem(RESUME_KEY);
+    const at = parseInt(r, 10);
+    if (Number.isInteger(at) && at >= 0 && at <= save.beaten) openReady(at);
+    toast('Updated! Your stuff is saved.');
+  }
+} catch (e) {}
 requestAnimationFrame(frame);
 </script>
 </body>
