@@ -1,0 +1,1763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Slide Splash</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+  html,body{margin:0;height:100%;overflow:hidden;background:#7ec8ff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;touch-action:none}
+  canvas{display:block}
+  #hud{position:fixed;top:0;left:0;right:0;display:none;justify-content:space-between;align-items:center;padding:12px 14px;color:#fff;font-weight:800;font-size:18px;text-shadow:0 2px 0 rgba(0,0,0,.35);pointer-events:none}
+  #hud .group{display:flex;gap:8px;align-items:center}
+  .pill{background:rgba(0,0,0,.28);padding:7px 14px;border-radius:999px}
+  .iconbtn{pointer-events:auto;border:0;background:rgba(0,0,0,.28);color:#fff;font-size:20px;font-weight:900;width:42px;height:42px;border-radius:50%;cursor:pointer}
+  .steer{position:fixed;bottom:24px;width:100px;height:100px;border-radius:50%;border:4px solid rgba(255,255,255,.9);background:rgba(0,0,0,.25);color:#fff;font-size:44px;font-weight:900;display:none;align-items:center;justify-content:center;touch-action:none;cursor:pointer}
+  .steer.on{background:rgba(255,255,255,.5);transform:scale(.95)}
+  #btnL{left:24px} #btnR{right:24px}
+  #btnJ{right:30px;bottom:140px;width:88px;height:88px;font-size:18px;background:rgba(255,90,138,.55)}
+  .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,40,80,.35);padding:16px}
+  .overlay.show{display:flex}
+  .card{background:#fff;border-radius:24px;padding:22px 20px;max-width:540px;width:100%;max-height:92vh;overflow:auto;text-align:center;box-shadow:0 8px 0 rgba(0,0,0,.18);color:#223}
+  h1{margin:0 0 2px;font-size:44px;color:#ff5a8a;letter-spacing:1px;text-shadow:0 3px 0 #ffd23f}
+  h2{margin:0 0 8px;font-size:28px}
+  p{margin:6px 0 14px;color:#556}
+  .coins{font-weight:900;color:#e6a100;font-size:20px}
+  .big{display:block;width:100%;border:0;border-radius:16px;padding:14px;margin:10px 0 0;font-size:22px;font-weight:900;color:#fff;background:#3fa9ff;box-shadow:0 5px 0 #1f78c4;cursor:pointer}
+  .big:active{transform:translateY(3px);box-shadow:0 2px 0 #1f78c4}
+  .big.pink{background:#ff5a8a;box-shadow:0 5px 0 #c73562}
+  .big.green{background:#36c46a;box-shadow:0 5px 0 #23904b}
+  .big.gray{background:#99a3b3;box-shadow:0 5px 0 #6f7887}
+  .row{display:flex;gap:10px}
+  .row .big{flex:1}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin:10px 0}
+  .tile{border:3px solid #e3e8f0;border-radius:16px;padding:10px 6px;cursor:pointer;background:#f7f9fc;font-weight:800;font-size:15px}
+  .tile.sel{border-color:#36c46a;background:#eafbf0}
+  .tile.locked{opacity:.45;cursor:default}
+  .tile small{display:block;font-weight:700;color:#778;margin-top:4px}
+  .swatch{width:46px;height:46px;border-radius:6px;margin:0 auto 6px;border:3px solid rgba(0,0,0,.12)}
+  .upg{display:flex;align-items:center;justify-content:space-between;gap:10px;text-align:left;border:3px solid #e3e8f0;border-radius:16px;padding:10px 12px;margin:8px 0;background:#f7f9fc}
+  .upg b{display:block}
+  .upg small{color:#667}
+  .pips{margin-top:4px;letter-spacing:3px;color:#36c46a;font-size:14px}
+  .buy{border:0;border-radius:12px;padding:10px 12px;font-weight:900;color:#fff;background:#ffb800;box-shadow:0 4px 0 #c78f00;cursor:pointer;white-space:nowrap}
+  .buy[disabled]{background:#c4cad4;box-shadow:0 4px 0 #9aa1ad;cursor:default}
+  .shake{animation:shake .3s}
+  @keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+  .section{font-weight:900;text-align:left;margin:14px 0 2px;color:#334}
+  .loadbar{height:16px;border-radius:999px;background:#e3e8f0;overflow:hidden;margin-top:6px}
+  #loadFill{height:100%;width:0;background:linear-gradient(90deg,#3fa9ff,#ff5a8a);transition:width .2s}
+  .pixel{image-rendering:pixelated;image-rendering:crisp-edges;width:100%;border-radius:12px;display:block;background:#9fe0ff}
+  .flag{image-rendering:pixelated;width:14px;height:18px;vertical-align:middle;margin:0 1px}
+  .flags b{font-size:14px;margin:0 6px 0 1px;vertical-align:middle}
+  .rar{display:inline-block;font-size:11px;font-weight:900;color:#fff;padding:2px 7px;border-radius:999px;margin-top:4px}
+  .passrow{display:flex;justify-content:space-between;align-items:center;border:2px solid #e3e8f0;border-radius:12px;padding:7px 10px;margin:5px 0;font-weight:800;font-size:14px}
+  #packPop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,20,50,.6);padding:16px;z-index:20}
+  #packPop.show{display:flex}
+  #packCard{max-width:380px;animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+  @keyframes pop{0%{transform:scale(.3) rotate(-8deg);opacity:0}100%{transform:scale(1);opacity:1}}
+  #packBanner{font-weight:900;letter-spacing:2px;color:#fff;border-radius:12px;padding:8px;margin-bottom:10px}
+  #packIcon{width:96px;height:96px;margin:0 auto 6px;image-rendering:pixelated}
+  .secretglow{background:linear-gradient(90deg,#111,#5a189a,#111,#19e3c4,#111);background-size:300% 100%;animation:shine 2s linear infinite}
+  @keyframes shine{to{background-position:300% 0}}
+  #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-weight:800;padding:8px 16px;border-radius:999px;display:none}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="group"><button class="iconbtn" id="hudMenu" aria-label="Menu">≡</button><span class="pill" id="hudLevel">Level 1</span></div>
+  <div class="group"><span class="pill coins" id="hudCoins" style="color:#ffe27a">● 0</span><button class="iconbtn" id="hudSound" aria-label="Sound on or off">🔊</button><button class="iconbtn" id="hudRetry" aria-label="Restart level">↻</button></div>
+</div>
+<button class="steer" id="btnL" aria-label="Steer left">◀</button>
+<button class="steer" id="btnR" aria-label="Steer right">▶</button>
+<button class="steer" id="btnJ" aria-label="Jump">JUMP</button>
+<div id="toast"></div>
+
+<div class="overlay" id="scrMenu"><div class="card">
+  <h1>Slide Splash</h1>
+  <p>Slide down, fly through the air, and land in the pool!</p>
+  <div class="coins" id="menuCoins">● 0 coins</div>
+  <p id="menuSkill" style="margin:4px 0 0"></p>
+  <button class="big pink" id="mPlay">Play</button>
+  <button class="big" id="mShop">Shop</button>
+  <button class="big" id="mPass" style="background:#9b5cff;box-shadow:0 5px 0 #6a35c4">Slide Pass</button>
+  <div class="row"><button class="big gray" id="mSound">Sound: On</button><button class="big gray" id="mMusic">Music: On</button></div>
+</div></div>
+
+<div class="overlay" id="scrLevels"><div class="card">
+  <h2>Pick a level</h2>
+  <p>Levels never end. Before you play, practice bots test each level to make sure it can be beaten and that it fits your skill.</p>
+  <div class="grid" id="levelGrid"></div>
+  <button class="big gray" id="lBack">Back</button>
+</div></div>
+
+<div class="overlay" id="scrShop"><div class="card">
+  <h2>Shop</h2>
+  <div class="coins" id="shopCoins">● 0 coins</div>
+  <div class="section">Boats (each one is better than the last)</div>
+  <div class="grid" id="boatGrid"></div>
+  <div class="section">Babies (each one has a perk)</div>
+  <div class="grid" id="skinGrid"></div>
+  <div class="section">Pack boats (only from Slide Pass packs)</div>
+  <div class="grid" id="packBoatGrid"></div>
+  <div class="section">Pack babies (only from Slide Pass packs)</div>
+  <div class="grid" id="packSkinGrid"></div>
+  <div class="section">Upgrades</div>
+  <div id="upgList"></div>
+  <button class="big gray" id="sBack">Back</button>
+</div></div>
+
+<div class="overlay" id="scrLoad"><div class="card">
+  <h2>Loading…</h2>
+  <p id="loadText">Building your slide</p>
+  <div class="loadbar"><div id="loadFill"></div></div>
+</div></div>
+
+<div class="overlay" id="scrPass"><div class="card">
+  <h2>Slide Pass</h2>
+  <p>Every win gives XP and moves your boat down the slide. Reach a checkpoint to get a pack!</p>
+  <canvas id="passCanvas2" class="pixel" width="192" height="72"></canvas>
+  <p id="xpText2" style="margin:6px 0 4px"></p>
+  <div class="section">Coming up</div>
+  <div id="passList"></div>
+  <div class="section">Pack odds</div>
+  <div id="packOdds" style="text-align:left;font-size:13px;color:#556"></div>
+  <button class="big gray" id="pBack">Back</button>
+</div></div>
+
+<div id="packPop"><div class="card" id="packCard">
+  <div id="packBanner">COMMON</div>
+  <div id="packIcon"></div>
+  <h2 id="packTitle">Item</h2>
+  <p id="packText"></p>
+  <div class="row"><button class="big green" id="packEquip">Equip</button><button class="big" id="packOk">Nice!</button></div>
+</div></div>
+
+<div class="overlay" id="scrReady"><div class="card">
+  <h2 id="readyTitle">Level 1</h2>
+  <p id="readyText">Hold ◀ ▶ to steer (or A/D or the arrow keys). Land in the pool. If you miss, you splat!</p>
+  <button class="big green" id="rGo">GO!</button>
+  <button class="big gray" id="rBack">Back</button>
+</div></div>
+
+<div class="overlay" id="scrWin"><div class="card">
+  <h2>Splash! 🎉</h2>
+  <div class="coins" id="winCoins">+10 coins</div>
+  <div id="winCoinsTotal" style="font-size:13px;color:#778;font-weight:700"></div>
+  <p id="winSkill" style="margin:4px 0 0"></p>
+  <p id="winFlags" style="margin:2px 0 6px"></p>
+  <div class="section" style="text-align:center">Slide Pass</div>
+  <canvas id="passCanvas" class="pixel" width="192" height="72"></canvas>
+  <p id="xpText" style="margin:6px 0 4px"></p>
+  <button class="big green" id="wNext">Next level</button>
+  <div class="row"><button class="big" id="wReplay">Replay</button><button class="big gray" id="wMenu">Menu</button></div>
+</div></div>
+
+<div class="overlay" id="scrLose"><div class="card">
+  <h2>Splat! 💥</h2>
+  <p id="loseText">You missed the pool.</p>
+  <button class="big pink" id="dRetry">Restart</button>
+  <button class="big green" id="dRevive">Revive</button>
+  <button class="big gray" id="dMenu">Home</button>
+</div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" integrity="sha512-dLxUelApnYxpLt6K2iomGngnHO83iUvZytA3YjDUCjT0HDOHKXnVYdf3hU4JjM8uEhxf9nD1/ey98U3t2vZ0qQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+//PHYS-START
+const WATER = 0.5, G = 22, DT = 1 / 120, DS = 0.5, JUMP = 12, LOOP_MIN_SPEED = 16, MAX_SPEED = 55;
+const BASE_P = {steer: 6, air: 1.0};
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ---------- Track building: a "turtle" walks forward laying down samples every DS ----------
+function makeRun(x, y, z, yaw, w) { return {samples: [], w, kick: 0, t: {x, y, z, yaw}}; }
+function pushSample(run, x, y, z, tx, ty, tz, yaw, extra) {
+  const n = Math.hypot(tx, ty, tz) || 1;
+  run.samples.push(Object.assign({x, y, z, tx: tx / n, ty: ty / n, tz: tz / n, rx: -Math.cos(yaw), rz: Math.sin(yaw), curv: 0, vmax: MAX_SPEED, loop: false}, extra));
+}
+// Straight (dyaw = 0), turn, or spiral (big dyaw). slope = drop per unit of ground distance.
+function addCurve(run, len, dyaw, slope) {
+  const t = run.t, n = Math.max(1, Math.round(len / DS)), dh = len / n, step = dyaw / n, curv = dyaw / len;
+  const vmax = Math.abs(curv) > 1e-4 ? clamp(Math.sqrt(40 / Math.abs(curv)), 11, MAX_SPEED) : MAX_SPEED;
+  if (!run.samples.length) pushSample(run, t.x, t.y, t.z, Math.sin(t.yaw), -slope, Math.cos(t.yaw), t.yaw, {});
+  for (let i = 0; i < n; i++) {
+    t.yaw += step;
+    t.x += Math.sin(t.yaw) * dh; t.z += Math.cos(t.yaw) * dh; t.y -= slope * dh;
+    pushSample(run, t.x, t.y, t.z, Math.sin(t.yaw), -slope, Math.cos(t.yaw), t.yaw, {curv, vmax});
+  }
+}
+// Zig-zag: legs side by side, each one lower, joined by hairpin turns.
+// Jumping off the side of one leg lands you on the next one down.
+function addSwitchback(run, legs, legLen, slope, dir) {
+  const Rh = run.w + 1.6;
+  for (let k = 0; k < legs; k++) {
+    addCurve(run, legLen, 0, slope);
+    if (k < legs - 1) { addCurve(run, Math.PI * Rh, dir * Math.PI, slope * 0.5); dir = -dir; }
+  }
+}
+// Snake: the slide weaves left-right across a straight line, so a straight jump lands back on it.
+function addWiggle(run, waves, segLen, amp, slope) {
+  addCurve(run, segLen / 2, amp / 2, slope);
+  for (let k = 0; k < waves; k++) addCurve(run, segLen, (k % 2 ? 1 : -1) * amp, slope);
+  addCurve(run, segLen / 2, (waves % 2 ? 1 : -1) * amp / 2, slope);
+}
+function switchbackDrop(w, legs, legLen, slope) { return legs * legLen * slope + (legs - 1) * Math.PI * (w + 1.6) * slope * 0.5; }
+// Vertical loop-de-loop; comes out shifted sideways so it doesn't hit itself.
+function addLoop(run, R, shift) {
+  const t = run.t, fx = Math.sin(t.yaw), fz = Math.cos(t.yaw), rx = -Math.cos(t.yaw), rz = Math.sin(t.yaw);
+  const n = Math.round(2 * Math.PI * R / DS), x0 = t.x, y0 = t.y, z0 = t.z;
+  for (let i = 1; i <= n; i++) {
+    const a = i / n * Math.PI * 2, sh = shift * i / n;
+    pushSample(run, x0 + fx * R * Math.sin(a) + rx * sh, y0 + R - R * Math.cos(a), z0 + fz * R * Math.sin(a) + rz * sh,
+      fx * Math.cos(a), Math.sin(a), fz * Math.cos(a), t.yaw, {loop: i < n, la: a});
+  }
+  t.x = x0 + rx * shift; t.z = z0 + rz * shift;
+}
+
+// ---------- Physics ----------
+// The slide is a trough: flat in the middle, curving up into walls at the edges.
+const WALL_H = 1.5, FLAT = 0.45;
+function wallHeight(run, u) {
+  const hw = run.w / 2, flat = hw * FLAT, a = Math.abs(u);
+  if (a <= flat) return 0;
+  const t = Math.min(1, (a - flat) / (hw - flat));
+  return WALL_H * t * t;
+}
+function wallSlope(run, u) { // how steep the wall is under you (for tilting the boat)
+  const hw = run.w / 2, flat = hw * FLAT, a = Math.abs(u);
+  if (a <= flat) return 0;
+  return Math.sign(u) * 2 * WALL_H * Math.min(1, (a - flat) / (hw - flat)) / (hw - flat);
+}
+function runPos(run, s, u, out) {
+  const S = run.samples, iMax = S.length - 1;
+  const fi = clamp(s / DS, 0, iMax), i = Math.min(iMax - 1, Math.floor(fi)), f = fi - i, a = S[i], b = S[i + 1];
+  const nx = -a.rz * a.ty, ny = a.rz * a.tx - a.rx * a.tz, nz = a.rx * a.ty, wh = wallHeight(run, u);
+  out.x = a.x + (b.x - a.x) * f + a.rx * u + nx * wh;
+  out.y = a.y + (b.y - a.y) * f + ny * wh;
+  out.z = a.z + (b.z - a.z) * f + a.rz * u + nz * wh;
+  return a;
+}
+function startState(L) {
+  const p = {air: false, run: 0, s: 0.5, u: 0, phi: 0, speed: 3, vref: 3, x: 0, y: 0, z: 0, hx: 0, hz: 1, vf: 0, vy: 0, vl: 0, lastRun: 0, inLoop: false, airJumped: false, bounced: false};
+  runPos(L.runs[0], p.s, 0, p);
+  return p;
+}
+// Leave the slide in the direction the boat is pointing.
+function takeOff(p, a, run, extraVy, sideVel) {
+  const h = Math.hypot(a.tx, a.tz) || 1, fx = a.tx / h, fz = a.tz / h, c = Math.cos(p.phi || 0), sn = Math.sin(p.phi || 0);
+  const dx = fx * c + a.rx * sn, dz = fz * c + a.rz * sn, dh = Math.hypot(dx, dz) || 1;
+  p.hx = dx / dh; p.hz = dz / dh; p.vf = p.speed * h; p.vy = p.speed * a.ty + extraVy;
+  p.vl = sideVel || 0; p.air = true; p.lastRun = p.run; p.inLoop = false;
+}
+function turnRate(P) { return P.steer * 0.6; } // radians per second the boat can turn
+
+// One physics tick. steer: -1..1 (+1 = right). sim = straight-line planning mode (stays centred, lands only on the next run).
+function step(p, L, steer, P, sim) {
+  if (!p.air) {
+    const run = L.runs[p.run], S = run.samples, iMax = S.length - 1;
+    const a = S[clamp(Math.floor(p.s / DS), 0, iMax - 1)];
+    let ev;
+    // vref = how fast a normal boat would go here. Items scale your real speed (sm), but launch
+    // ramps always fire you off at normal speed so every pool and gap stays reachable.
+    const sm = P.speedMul || 1;
+    if (a.loop) {
+      if (!p.inLoop) { p.inLoop = true; ev = 'loop'; }
+      p.vref = Math.max(p.vref, LOOP_MIN_SPEED); p.speed = Math.max(p.vref * sm, LOOP_MIN_SPEED * 0.8); p.phi = 0;
+    } else {
+      p.inLoop = false;
+      p.vref += G * (-a.ty) * 0.8 * DT;
+      p.vref *= 1 - 0.12 * DT;
+      if (p.vref > a.vmax) p.vref += (a.vmax - p.vref) * Math.min(1, 6 * DT);
+      p.vref = clamp(p.vref, 2, MAX_SPEED);
+      p.speed = p.vref * sm;
+      if (sim) { p.phi = 0; p.u = 0; }
+      else {
+        // The boat keeps going the way it points. When the slide bends, you drift toward the outside
+        // unless you steer with it. The curved walls push back a little, but not enough for sharp corners.
+        p.phi += a.curv * p.speed * DT;                       // slide turns away under you
+        p.phi += steer * turnRate(P) * DT;                    // your steering
+        const hw = run.w / 2, flat = hw * FLAT, pen = Math.abs(p.u) - flat;
+        if (pen > 0) p.phi -= Math.sign(p.u) * pen / (hw - flat) * 1.6 * (P.wall || 1) * DT; // wall pushes you back toward the middle
+        p.phi *= 1 - 0.35 * DT;                               // water gently straightens you out
+        p.phi = clamp(p.phi, -1.2, 1.2);
+        p.u += p.speed * Math.sin(p.phi) * DT;
+        if (p.grip > 0) { // just landed: walls hold you, and you settle straight
+          p.grip -= DT; p.phi *= 1 - 4 * DT;
+          const lim = run.w / 2 - 0.1;
+          if (Math.abs(p.u) > lim) { p.u = Math.sign(p.u) * lim; if (p.phi * p.u > 0) p.phi = 0; }
+        }
+      }
+    }
+    p.s += p.speed * Math.cos(p.phi) * DT;
+    const b = runPos(run, p.s, p.u, p);
+    if (p.s >= iMax * DS) { p.speed = p.vref; takeOff(p, S[iMax], run, run.kick, 0); p.launchT = 0.4; return 'launch'; }
+    if (!sim && !b.loop && Math.abs(p.u) > run.w / 2) { // flew over the wall
+      p.u = Math.sign(p.u) * run.w / 2; runPos(run, p.s, p.u, p);
+      takeOff(p, b, run, 2, 0); return 'falloff';
+    }
+    return ev;
+  }
+  // in the air
+  const py = p.y;
+  if (p.launchT > 0) p.launchT -= DT;
+  p.vy -= G * DT;
+  const lat = sim ? 0 : (p.vl || 0) + steer * P.steer * P.air, rx = -p.hz, rz = p.hx;
+  p.vl = (p.vl || 0) * (1 - 0.6 * DT);
+  if (!sim && steer) { // steering in the air bends your flight so you can follow the slide
+    const turn = steer * P.air * 1.6 * DT, nx = p.hx + rx * turn, nz = p.hz + rz * turn, nh = Math.hypot(nx, nz);
+    p.hx = nx / nh; p.hz = nz / nh;
+  }
+  p.x += (p.hx * p.vf + rx * lat) * DT; p.z += (p.hz * p.vf + rz * lat) * DT; p.y += p.vy * DT;
+  let best = null, wallHit = null;
+  const test = (j, i) => {
+    const run = L.runs[j], sm = run.samples[i];
+    if (sm.loop) { if (!sim) testLoop(run, j, i, sm); return; }
+    if (p.launchT > 0 && j === p.lastRun && i >= run.samples.length - 8) return; // just launched off this end: don't catch it again
+    const h = Math.hypot(sm.tx, sm.tz) || 1, fx = sm.tx / h, fz = sm.tz / h;
+    const dx = p.x - sm.x, dz = p.z - sm.z, along = dx * fx + dz * fz;
+    const latRaw = dx * sm.rx + dz * sm.rz;
+    // on the outside of a bend the pieces fan apart, so widen the catch zone there (no gaps at the edges)
+    const reach = DS * 0.6 * (1 + Math.abs(latRaw * sm.curv) * 1.3);
+    if (Math.abs(along) > reach) return;
+    const lat2 = sim ? 0 : latRaw, hw = run.w / 2;
+    // the outside of the walls is solid too: bump off instead of passing through
+    if (!sim && Math.abs(lat2) > hw && Math.abs(lat2) <= hw + 0.45 && p.y <= sm.y + WALL_H + 0.2 && p.y >= sm.y - 0.7) {
+      if (!wallHit) wallHit = {sm, side: Math.sign(lat2), run};
+      return;
+    }
+    if (Math.abs(lat2) > hw) return;
+    const top = sm.y + wallHeight(run, lat2);
+    // solid: caught if we passed down through the top this tick, or are inside the slide's thickness
+    const crossed = py >= top - 0.05 && p.y <= top;
+    const inside = p.y <= top && p.y >= top - 1.2;
+    if (!crossed && !inside) return;
+    if (!best || top > best.y) best = {j, i, y: top, along, lat: lat2};
+  };
+  // Loop-de-loops are solid too: land on the bottom of a loop, bump off its sides and roof.
+  function testLoop(run, j, i, sm) {
+    const nx = -sm.rz * sm.ty, ny = sm.rz * sm.tx - sm.rx * sm.tz, nz = sm.rx * sm.ty; // points into the loop
+    const dx = p.x - sm.x, dy = p.y - sm.y, dz = p.z - sm.z;
+    if (Math.abs(dx * sm.tx + dy * sm.ty + dz * sm.tz) > DS * 0.7) return;
+    if (Math.abs(dx * sm.rx + dz * sm.rz) > run.w / 2 + 0.45) return;
+    const off = dx * nx + dy * ny + dz * nz;
+    if (off < -0.8 || off > 0.5) return;
+    if (ny > 0.75 && p.vy <= 0 && off >= -0.3) { if (!best || sm.y > best.y) best = {j, i, y: sm.y, along: 0, lat: dx * sm.rx + dz * sm.rz}; }
+    else if (!wallHit) wallHit = {sm, side: 0, run, loop: {nx, ny, nz}};
+  }
+  if (sim) {
+    const j = p.lastRun + 1;
+    if (j < L.runs.length && p.vy < 0) { const n = Math.min(L.runs[j].samples.length, 240); for (let i = 0; i < n; i++) test(j, i); }
+  } else {
+    const cx = Math.floor(p.x / L.cell), cz = Math.floor(p.z / L.cell);
+    for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) {
+      const list = L.grid.get((cx + a) + ',' + (cz + c));
+      if (list) for (let k = 0; k < list.length; k += 2) test(list[k], list[k + 1]);
+    }
+  }
+  if (!best && wallHit && wallHit.loop) { // hit the side/roof of a loop: stop dead and drop
+    const {nx, ny, nz} = wallHit.loop;
+    p.x += nx * 0.1; p.y += ny * 0.1; p.z += nz * 0.1;
+    p.vf *= 0.25; p.vl = 0; if (p.vy > 0) p.vy = -1;
+    return 'bonk';
+  }
+  if (!best && wallHit) {
+    const {sm, side, run} = wallHit, dot = p.hx * sm.rx + p.hz * sm.rz;
+    p.x += sm.rx * side * 0.05; p.z += sm.rz * side * 0.05;
+    if (dot * side < 0) { // moving into the wall: bounce away
+      let nx = p.hx - 1.8 * dot * sm.rx, nz = p.hz - 1.8 * dot * sm.rz; const nh = Math.hypot(nx, nz) || 1;
+      p.hx = nx / nh; p.hz = nz / nh; p.vf *= 0.75;
+    }
+    if ((p.vl || 0) * side < 0) p.vl = -p.vl * 0.4;
+    return 'bonk';
+  }
+  if (best) {
+    if (p.vy > 2 && !sim) { // hit the underside going up: bonk and fall back down
+      p.y = best.y - 1.3; p.vy = -2; return 'bonk';
+    }
+    const run = L.runs[best.j], sm = run.samples[best.i], h = Math.hypot(sm.tx, sm.tz) || 1;
+    // keep the angle you land at, so a sideways landing still slides sideways
+    const fwd = (p.hx * sm.tx + p.hz * sm.tz) / h, side = p.hx * sm.rx + p.hz * sm.rz;
+    // the slide catches you: line the boat up with it so you don't shoot straight over the far wall
+    p.air = false; p.run = best.j; p.lastRun = best.j; p.s = Math.max(0, best.i * DS + best.along);
+    p.u = clamp(best.lat, -(run.w / 2 - 0.5), run.w / 2 - 0.5);
+    p.phi = sim ? 0 : clamp(Math.atan2(side, Math.abs(fwd) + 0.3), -0.25, 0.25);
+    p.speed = Math.max(p.vf * (0.55 + 0.4 * Math.abs(fwd)), 6); p.vref = p.speed; p.airJumped = false; p.launchT = 0;
+    p.grip = sim ? 0 : 0.5; // half a second where the walls hold you in
+    runPos(L.runs[p.run], p.s, p.u, p);
+    return 'land';
+  }
+}
+
+// Jump off the slide; with airJump a second jump in the air.
+// Steering while you jump throws you sideways, so you can hop down onto the slide below.
+const JUMP_SIDE = 7;
+function jump(p, L, airJump, steer) {
+  steer = steer || 0;
+  if (p.air) {
+    if (!airJump || p.airJumped) return false;
+    p.airJumped = true; p.vy = Math.max(p.vy, 0) + JUMP * 0.8; p.vl = (p.vl || 0) + steer * JUMP_SIDE * 0.7; return 'air';
+  }
+  const run = L.runs[p.run], a = run.samples[clamp(Math.floor(p.s / DS), 0, run.samples.length - 2)];
+  if (a.loop) return false;
+  p.speed = Math.max(p.speed, p.vref || 0); // jumps carry normal momentum, so slow items can still make every gap
+  takeOff(p, a, run, JUMP, steer * JUMP_SIDE); p.y += 0.05;
+  return true;
+}
+
+// Straight-line ride (perfect aim). Returns where we fall below `target` after the last run.
+function simulateTo(L, target, jumpAt) {
+  const p = startState(L), lastIdx = L.runs.length - 1;
+  for (let i = 0; i < 120 * 240; i++) {
+    if (jumpAt != null && !p.air && p.run === lastIdx) {
+      const S = L.runs[lastIdx].samples;
+      if (p.s >= (S.length - 1) * DS - jumpAt) jump(p, L, false);
+    }
+    step(p, L, 0, BASE_P, true);
+    if (p.air && p.lastRun === lastIdx && p.vy < 0 && p.y <= target) return {x: p.x, y: p.y, z: p.z, hx: p.hx, hz: p.hz};
+  }
+  return {x: p.x, y: p.y, z: p.z, hx: p.hx, hz: p.hz, fail: true};
+}
+
+// ---------- Pools ----------
+function inPrim(pr, x, z, m) {
+  const px = x - (pr.x || 0), pz = z - (pr.z || 0);
+  if (pr.t === 'c') return Math.hypot(px, pz) <= pr.r + m;
+  if (pr.t === 'r') return Math.abs(px) <= pr.w / 2 + m && Math.abs(pz) <= pr.d / 2 + m;
+  if (pr.t === 'tri') {
+    for (const a of [Math.PI / 3, Math.PI, 5 * Math.PI / 3]) if (px * Math.sin(a) + pz * Math.cos(a) > pr.r / 2 + m) return false;
+    return true;
+  }
+  return false;
+}
+// The pool is turned to face the slide (yaw); convert to its own frame first.
+function inPool(pool, x, z, m) {
+  m = m || 0;
+  const wx = x - pool.cx, wz = z - pool.cz, c = Math.cos(pool.yaw), s = Math.sin(pool.yaw);
+  const lx = wx * c - wz * s, lz = wx * s + wz * c;
+  if (pool.holes) for (const h of pool.holes) if (Math.hypot(lx - (h.x || 0), lz - (h.z || 0)) < h.r - m) return false;
+  return pool.prims.some(pr => inPrim(pr, lx, lz, m));
+}
+
+// ---------- Infinite level generator ----------
+const NAME_A = ['Splash', 'Twisty', 'Mega', 'Turbo', 'Wobbly', 'Rainbow', 'Sky', 'Noodle', 'Spiral', 'Zoomy', 'Giga', 'Bubbly', 'Loopy', 'Wild', 'Crazy', 'Sunny', 'Dizzy', 'Swirly'];
+const NAME_B = ['Drop', 'Twirl', 'Tower', 'Coaster', 'Corkscrew', 'Plunge', 'Swirl', 'Spin', 'Rush', 'Tornado', 'Dive', 'Wiggle', 'Cannon', 'Chute', 'Glide', 'Whirl'];
+function levelName(n) { const r = mulberry32(n * 31 + 7); return NAME_A[Math.floor(r() * NAME_A.length)] + ' ' + NAME_B[Math.floor(r() * NAME_B.length)]; }
+function levelHeight(n) { return 70 + Math.min(n, 40) * 9 + Math.max(0, n - 40) * 2; }
+function levelReward(n) { return 10 + n * 4; }
+
+function finishLevel(L) {
+  // look ahead: start slowing down before tight turns so they can be steered
+  for (const run of L.runs) {
+    const S = run.samples;
+    for (let i = S.length - 2; i >= 0; i--) S[i].vmax = Math.min(S[i].vmax, S[i + 1].vmax + 0.45);
+  }
+  L.cell = 5; L.grid = new Map(); // cells must be wider than half a slide plus its wall, or edges get missed
+  L.runs.forEach((run, j) => run.samples.forEach((sm, i) => {
+    const key = Math.floor(sm.x / L.cell) + ',' + Math.floor(sm.z / L.cell);
+    let list = L.grid.get(key); if (!list) L.grid.set(key, list = []);
+    list.push(j, i);
+  }));
+}
+
+function generate(n, variant, k) {
+  if (k === true) k = 0.4; else if (!k) k = 1;
+  const rng = mulberry32(n * 7919 + variant * 104729 + 13);
+  const r = (a, b) => a + (b - a) * rng();
+  const d = Math.min(1.4, Math.min(1, (n - 1) / 25) * k + (k > 1 ? (k - 1) * 0.5 : 0));
+  const easy = Math.max(0, 1 - k);                // 0 = normal, up to ~0.9 = much easier
+  const H = levelHeight(n) * (1 - 0.45 * easy), w = Math.max(3.1, 7 - 3.4 * d) + easy * 3;
+  const bend = 1 - 0.45 * easy;                    // easier = gentler bends
+  const runsN = n === 1 ? 1 : 1 + Math.min(3, Math.floor(rng() * (1 + d * 3.5)));
+  const jumpLevel = n % 6 === 0;
+  const endY = r(8, 13);
+  const falls = []; for (let k = 0; k < runsN - 1; k++) falls.push(r(5, 8));
+  const L = {n, name: levelName(n), H, reward: levelReward(n), jumpLevel, runs: []};
+  let start = {x: 0, y: H, z: 0, yaw: 0};
+  for (let k = 0; k < runsN; k++) {
+    const run = makeRun(start.x, start.y, start.z, start.yaw, w);
+    const fallsLeft = falls.slice(k).reduce((a, b) => a + b, 0);
+    const budget = (start.y - endY - fallsLeft) / (runsN - k);
+    const endTarget = start.y - budget;
+    if (k === 0) addCurve(run, Math.min(budget * 0.25, H * 0.14) / 0.7, 0, 0.7); // steep plunge off the top, then it twists the rest of the way down
+    else addCurve(run, 10, 0, 0.25);
+    let prevKind = 'straight';
+    for (let guard = 0; guard < 60; guard++) {
+      const rem = run.t.y - endTarget - 4;
+      if (rem < 4) break;
+      const roll = rng(), dir = rng() < 0.5 ? 1 : -1;
+      let len, dyaw = 0, slope;
+      if (n >= 2 && roll < 0.08 && prevKind !== 'loop') {
+        addLoop(run, r(5, 7), (w + 1) * (rng() < 0.5 ? 1 : -1)); prevKind = 'loop'; continue;
+      }
+      if (n >= 2 && roll < 0.3 && prevKind !== 'switch') { // zig-zag you can jump down
+        let legs = 2 + Math.floor(rng() * (1.5 + 3 * d));
+        const legLen = r(20, 34), sl = r(0.18, 0.28);
+        if (easy > 0.3) { prevKind = 'switch'; continue; } // no hairpins in easy versions
+        while (legs >= 2 && switchbackDrop(w, legs, legLen, sl) > rem) legs--;
+        if (legs >= 2) { addSwitchback(run, legs, legLen, sl, dir); prevKind = 'switch'; continue; }
+      }
+      if (roll < 0.5) { // snake you can jump across
+        const waves = 3 + Math.floor(rng() * (2 + 3 * d)), segLen = r(14, 22) * (1 + easy), amp = dir * r(60, 95) * bend * Math.PI / 180, sl = r(0.16, 0.28);
+        if ((waves + 1) * segLen * sl <= rem) { addWiggle(run, waves, segLen, amp, sl); prevKind = 'wiggle'; continue; }
+      }
+      if (roll < 0.68) { // tight twirl
+        const radius = r(8, 13) * (1 + easy), turns = r(1, 1.5 + 2.5 * d);
+        slope = r(0.11, 0.17); len = turns * 2 * Math.PI * radius; dyaw = dir * turns * 2 * Math.PI; prevKind = 'spiral';
+      } else if (roll < 0.93) { // sharp turn, often an S-bend
+        len = r(16, 36) * (1 + easy); dyaw = dir * r(70, 180) * bend * Math.PI / 180; slope = r(0.15, 0.3); prevKind = 'turn';
+        if (rng() < 0.5 && slope * len * 2 < rem) { addCurve(run, len, dyaw, slope); dyaw = -dyaw * r(0.7, 1.2); len = r(16, 36); }
+      } else { len = r(10, 22); slope = r(0.25, 0.45); prevKind = 'straight'; }
+      if (slope * len > rem) { const k2 = rem / (slope * len); len *= k2; dyaw *= k2; }
+      if (len < 6) break;
+      addCurve(run, len, dyaw, slope);
+    }
+    // straight run-out to the exact end height, then the launch ramp
+    const left = Math.max(0.5, run.t.y - endTarget), outLen = Math.max(14, left / 0.4);
+    addCurve(run, outLen, 0, left / outLen);
+    run.kick = k < runsN - 1 ? r(4, 6) : (jumpLevel ? 0 : r(3, 8));
+    L.runs.push(run);
+    if (k < runsN - 1) {
+      const target = run.t.y - falls[k], hit = simulateTo(L, target);
+      const yaw = Math.atan2(hit.hx, hit.hz), dx = (rng() * 2 - 1) * (1 + 5 * d), back = 5;
+      start = {x: hit.x - hit.hx * back - Math.cos(yaw) * dx, y: target + 0.25 * back, z: hit.z - hit.hz * back + Math.sin(yaw) * dx, yaw};
+    }
+  }
+  finishLevel(L);
+  // pool where a straight ride lands (or a jump, on jump levels)
+  const nat = simulateTo(L, WATER);
+  let land = nat, isJump = false;
+  if (jumpLevel) {
+    const jl = simulateTo(L, WATER, 2), gap = (jl.x - nat.x) * nat.hx + (jl.z - nat.z) * nat.hz;
+    if (gap > 6) { land = jl; isJump = true; L.jumpGap = gap; }
+  }
+  L.jumpLevel = isJump;
+  const yaw = Math.atan2(land.hx, land.hz), rxp = -Math.cos(yaw), rzp = Math.sin(yaw);
+  const dxp = (rng() * 2 - 1) * (2 + 7 * d), size = Math.max(2.8, 9 - 5.5 * d);
+  const shapes = ['c', 'r', 'tri', 'cross', 'L'];
+  if (n >= 4) shapes.push('donut');
+  let shape = n === 1 ? 'c' : shapes[Math.floor(rng() * shapes.length)];
+  if (isJump) shape = 'jump';
+  const pool = {cx: land.x + rxp * dxp, cz: land.z + rzp * dxp, yaw, shape};
+  if (shape === 'c') pool.prims = [{t: 'c', r: size}];
+  else if (shape === 'r') pool.prims = [{t: 'r', w: size * 1.6, d: size * 1.2}];
+  else if (shape === 'tri') pool.prims = [{t: 'tri', r: size * 1.3}];
+  else if (shape === 'cross') pool.prims = [{t: 'r', w: size * 0.6, d: size * 2}, {t: 'r', w: size * 2, d: size * 0.6}];
+  else if (shape === 'L') pool.prims = [{t: 'r', w: size * 0.7, d: size * 2}, {t: 'r', w: size * 1.6, d: size * 0.7, x: size * 0.45, z: size * 0.65}];
+  else if (shape === 'donut') { pool.prims = [{t: 'c', r: size + 4}]; pool.holes = [{r: 3.5}]; }
+  else pool.prims = [{t: 'r', w: Math.max(6, size * 1.4), d: Math.min(9, L.jumpGap * 1.2 - 2)}];
+  L.pool = pool;
+  return L;
+}
+
+// A simple bot that plays the real physics. Used to make sure every level can be beaten.
+function botTarget(L, runIdx) {
+  if (runIdx + 1 < L.runs.length) { const S = L.runs[runIdx + 1].samples; return S[Math.min(S.length - 1, 14)]; }
+  const pl = L.pool;
+  if (pl.holes) { const rr = pl.holes[0].r + 2.2; return {x: pl.cx + rr * Math.cos(pl.yaw), z: pl.cz - rr * Math.sin(pl.yaw)}; }
+  return {x: pl.cx, z: pl.cz};
+}
+// A bot that plays the real physics. skill = 1 plays perfectly; lower skill reacts slower,
+// steers sloppier and aims worse, like a real player. Used to rate how hard each level is.
+function botPlay(L, P, returnState, skill, rng) {
+  skill = skill == null ? 1 : skill; rng = rng || Math.random;
+  const perfect = skill >= 1, p = startState(L), lastIdx = L.runs.length - 1;
+  const lag = perfect ? 1 : Math.round(120 * (0.04 + (1 - skill) * 0.28));   // ticks between decisions
+  const noise = perfect ? 0 : (1 - skill) * 0.9;                               // shaky thumbs
+  const misjudge = perfect ? 1 : 1 + (rng() * 2 - 1) * (1 - skill) * 0.45;     // over/under-steers turns
+  const aimErr = perfect ? 0 : (rng() * 2 - 1) * (1 - skill) * 5;              // misses the target by this much
+  const jumpErr = perfect ? 0 : (rng() * 2 - 1) * (1 - skill) * 2.5;           // jump timing
+  let held = 0;
+  for (let t = 0; t < 120 * 240; t++) {
+    if (t % lag === 0) {
+      let steer = 0;
+      if (!p.air) {
+        const run = L.runs[p.run], S = run.samples, remain = (S.length - 1) * DS - p.s;
+        // a real player looks a little ahead
+        const look = perfect ? 0 : Math.round((lag / 120) * p.speed / DS * 0.6);
+        const a = S[clamp(Math.floor(p.s / DS) + look, 0, S.length - 1)];
+        let target = 0;
+        if (remain < 18) {
+          const T = botTarget(L, p.run), e = S[S.length - 1];
+          target = clamp((T.x - e.x) * e.rx + (T.z - e.z) * e.rz + aimErr * 0.4, -(run.w / 2 - 1), run.w / 2 - 1);
+        }
+        if (!a.loop) {
+          const want = clamp((target - p.u) * 0.25, -0.35, 0.35);
+          steer = (-a.curv * p.speed * misjudge) / turnRate(P) + (want - p.phi) * 3;
+        }
+        if (L.jumpLevel && p.run === lastIdx && remain < 2 + jumpErr) jump(p, L, false);
+      } else {
+        const T = botTarget(L, p.lastRun), ex = -p.hz, ez = p.hx;
+        steer = ((T.x + ex * aimErr - p.x) * ex + (T.z + ez * aimErr - p.z) * ez) * 2;
+      }
+      steer += (rng() * 2 - 1) * noise;
+      held = perfect ? clamp(steer, -1, 1) : (steer > 0.3 ? 1 : steer < -0.3 ? -1 : 0); // real buttons are on/off
+    }
+    step(p, L, held, P, false);
+    if (p.air && p.y <= WATER) { const ok = inPool(L.pool, p.x, p.z); return returnState ? {ok, p} : ok; }
+  }
+  return returnState ? {ok: false, p} : false;
+}
+
+// Chance (0..1) that a player of this skill beats the level: run a crowd of bots at that skill.
+function beatChance(L, skill, tries) {
+  tries = tries || 12;
+  const rng = mulberry32(L.n * 131 + 77);
+  let wins = 0;
+  for (let k = 0; k < tries; k++) if (botPlay(L, BASE_P, false, skill, rng)) wins++;
+  return wins / tries;
+}
+
+// Pick a version of level n that (1) a perfect player can beat and (2) gives *you* a fair chance.
+// Builds the level at different difficulty settings and keeps the one whose chance is closest to the target.
+const TARGET_CHANCE = 0.6, CHANCE_OK = 0.15;
+const levelCache = new Map();
+function getLevel(n, skill) {
+  skill = skill == null ? 0.5 : skill;
+  const key = n + ':' + Math.round(skill * 20);
+  if (levelCache.has(key)) return levelCache.get(key);
+  let best = null, bestGap = 1e9, k = 1, lo = 0.08, hi = 1.8;
+  for (let round = 0; round < 7; round++) {
+    let gotOne = false, chSum = 0, cnt = 0;
+    for (let v = 0; v < 3; v++) {
+      const c = generate(n, round * 3 + v, k);
+      if (!botPlay(c, BASE_P)) continue;                 // must be possible
+      gotOne = true;
+      const ch = beatChance(c, skill, 10); c.chance = ch; c.diffK = k;
+      chSum += ch; cnt++;
+      const gap = Math.abs(ch - TARGET_CHANCE);
+      if (gap < bestGap) { best = c; bestGap = gap; }
+      if (gap <= CHANCE_OK) break;
+    }
+    if (bestGap <= CHANCE_OK) break;
+    const avg = cnt ? chSum / cnt : 0;
+    // too hard (or impossible) -> easier; too easy -> harder (binary search on the difficulty knob)
+    if (!gotOne || avg < TARGET_CHANCE) { hi = k; k = (k + lo) / 2; } else { lo = k; k = Math.min((k + hi) / 2, 1.8); }
+  }
+  if (!best) { for (let v = 50; v < 80 && !best; v++) { const c = generate(n, v, 0.1); if (botPlay(c, BASE_P)) { best = c; c.chance = beatChance(c, skill, 10); } } }
+  if (!best) { best = generate(n, 0, 0.1); best.chance = 0; }
+  if (levelCache.size > 40) levelCache.clear();
+  levelCache.set(key, best);
+  return best;
+}
+//PHYS-END
+
+// ---------- Save data ----------
+const SKINS = [
+  {id:'sunny', name:'Sunny', color:'#ffd23f', price:0, hat:null, perk:'No perk. The classic baby.'},
+  {id:'cherry', name:'Cherry', color:'#ff4d4d', price:25, hat:'bow', coin:0.1, perk:'+10% coins'},
+  {id:'lime', name:'Lime', color:'#7ed957', price:40, hat:'leaf', steer:0.15, perk:'+15% steering'},
+  {id:'grape', name:'Grape', color:'#9b5cff', price:60, hat:'cap', air:0.2, perk:'+20% air control'},
+  {id:'ocean', name:'Ocean', color:'#3fa9ff', price:80, hat:'goggles', edge:0.7, perk:'Pool edges count as a splash'},
+  {id:'bubblegum', name:'Bubblegum', color:'#ff8ad8', price:120, hat:'bubble', bounce:true, perk:'Bounce once if you miss'},
+  {id:'midnight', name:'Midnight', color:'#2b2d42', price:150, hat:'visor', aim:true, perk:'Shows where you will land when flying'},
+  {id:'gold', name:'Gold', color:'#ffb800', price:220, hat:'crown', coin:0.35, perk:'+35% coins'},
+  {id:'rainbow', name:'Rainbow', color:'rainbow', price:400, hat:'halo', coin:0.2, steer:0.1, air:0.1, edge:0.4, aim:true, perk:'Landing marker, +20% coins, a bit of everything'},
+];
+
+const BOATS = [
+  {id:'tube', name:'Splash Tube', color:'#ff8c1a', price:0, perk:'No perk. A trusty tube.'},
+  {id:'raft', name:'Log Raft', color:'#a0662d', price:100, steer:0.15, perk:'+15% steering'},
+  {id:'speed', name:'Speedboat', color:'#f4f4f4', price:250, steer:0.25, air:0.25, coin:0.1, perk:'+25% steering, +25% air control, +10% coins'},
+  {id:'rocket', name:'Rocket Boat', color:'#7b3cff', price:500, steer:0.4, air:0.4, coin:0.2, airJump:true, perk:'+40% steering & air, +20% coins, double jump in the air'},
+];
+
+// ---------- Pack-only items: their own rarity system, separate from the shop ----------
+// spd = speed change (negative = slower = easier to steer), steer/air = control, wall = how hard the walls push you back.
+const RARITIES = [
+  {id: 'common', name: 'Common', color: '#9aa3b3', dupe: 15},
+  {id: 'uncommon', name: 'Uncommon', color: '#36c46a', dupe: 30},
+  {id: 'rare', name: 'Rare', color: '#3fa9ff', dupe: 60},
+  {id: 'epic', name: 'Epic', color: '#9b5cff', dupe: 120},
+  {id: 'legendary', name: 'Legendary', color: '#ffb800', dupe: 250},
+  {id: 'mythic', name: 'Mythic', color: '#ff3d7f', dupe: 500},
+  {id: 'exotic', name: 'Exotic', color: '#19e3c4', dupe: 1000},
+  {id: 'secret', name: 'Secret', color: '#111111', dupe: 3000},
+];
+const RAR = Object.fromEntries(RARITIES.map((r, i) => [r.id, Object.assign({rank: i}, r)]));
+const PACK_BOATS = [
+  {id: 'p_noodle', name: 'Pool Noodle', rarity: 'common', shape: 'tube', pal: [0xff6bd6, 0xa3e635, 0xff6bd6], spd: 0.08, steer: 0.05, perk: '+8% speed (harder!), +5% steering'},
+  {id: 'p_box', name: 'Cardboard Box', rarity: 'common', shape: 'raft', pal: [0xc8a165, 0xa8824a, 0x6b4423], spd: -0.05, steer: -0.1, perk: '-5% speed, but -10% steering'},
+  {id: 'p_duck', name: 'Duck Float', rarity: 'uncommon', shape: 'tube', pal: [0xffd23f, 0xff8c1a, 0x7fdcff], steer: 0.1, perk: '+10% steering'},
+  {id: 'p_jetski', name: 'Jet Ski', rarity: 'rare', shape: 'speed', pal: [0x3fa9ff, 0xffffff, 0x1f2d5c], spd: 0.1, steer: 0.2, air: 0.1, perk: '+10% speed (risky), +20% steering, +10% air'},
+  {id: 'p_steamer', name: 'Paddle Steamer', rarity: 'epic', shape: 'raft', pal: [0xd62828, 0x8a1c1c, 0xffd23f], spd: -0.1, steer: 0.15, wall: 0.3, perk: '-10% speed, +15% steering, stronger walls'},
+  {id: 'p_hover', name: 'Hover Raft', rarity: 'legendary', shape: 'speed', pal: [0xffc400, 0x8a5cff, 0x222222], spd: -0.15, steer: 0.25, air: 0.2, perk: '-15% speed, +25% steering, +20% air'},
+  {id: 'p_dragon', name: 'Dragon Boat', rarity: 'mythic', shape: 'rocket', pal: [0xc1121f, 0xffc400, 0x2b0a0a], spd: -0.1, steer: 0.35, air: 0.35, coin: 0.25, airJump: true, perk: '-10% speed, +35% steering & air, +25% coins, double jump'},
+  {id: 'p_galaxy', name: 'Galaxy Cruiser', rarity: 'exotic', shape: 'rocket', pal: [0x3a0ca3, 0x22e3d0, 0x120a2a], spd: -0.22, steer: 0.4, air: 0.4, coin: 0.4, airJump: true, wall: 0.4, perk: '-22% speed, +40% steering & air, +40% coins, double jump'},
+  {id: 'p_turtle', name: 'Turtle Shell', rarity: 'secret', shape: 'tube', pal: [0x2d6a4f, 0x95d5b2, 0x1b4332], spd: -0.45, steer: 0.5, wall: 1.0, coin: 0.5, airJump: true, perk: 'SECRET: stays slow the whole ride, +50% steering, super walls, +50% coins, double jump'},
+];
+const PACK_SKINS = [
+  {id: 'p_mud', name: 'Mud Baby', rarity: 'common', color: '#7a5230', hat: null, coin: 0.05, perk: '+5% coins'},
+  {id: 'p_sock', name: 'Sock Baby', rarity: 'common', color: '#e6e6e6', hat: 'leaf', steer: -0.05, air: 0.1, perk: '+10% air, but -5% steering'},
+  {id: 'p_mint', name: 'Mint', rarity: 'uncommon', color: '#3ee6c1', hat: 'bow', steer: 0.08, perk: '+8% steering'},
+  {id: 'p_ninja', name: 'Ninja', rarity: 'rare', color: '#1a1a1a', hat: 'visor', air: 0.2, steer: 0.05, perk: '+20% air, +5% steering'},
+  {id: 'p_lava', name: 'Lava', rarity: 'epic', color: '#ff4500', hat: 'crown', spd: 0.05, coin: 0.3, perk: '+30% coins, but +5% speed'},
+  {id: 'p_frost', name: 'Frost', rarity: 'legendary', color: '#a8e6ff', hat: 'goggles', spd: -0.1, steer: 0.12, perk: '-10% speed, +12% steering'},
+  {id: 'p_neon', name: 'Neon', rarity: 'mythic', color: '#ff2bd6', hat: 'halo', aim: true, steer: 0.15, spd: -0.05, perk: 'Landing marker, +15% steering, -5% speed'},
+  {id: 'p_cosmic', name: 'Cosmic', rarity: 'exotic', color: '#5a189a', hat: 'halo', spd: -0.15, aim: true, edge: 0.6, coin: 0.2, perk: '-15% speed, landing marker, pool edges count, +20% coins'},
+  {id: 'p_snail', name: 'Snail Baby', rarity: 'secret', color: '#8bc34a', hat: 'cap', spd: -0.45, steer: 0.4, wall: 0.8, coin: 0.4, perk: 'SECRET: slow the whole time, +40% steering, super walls, +40% coins'},
+];
+const PACK_ITEMS = PACK_BOATS.map(b => Object.assign({kind: 'boat'}, b)).concat(PACK_SKINS.map(k => Object.assign({kind: 'skin'}, k)));
+// Pack types and the chance (in %) of each rarity. Secrets only come from Exotic packs, 1%.
+const PACKS = [
+  {id: 'common', name: 'Common Ship Pack', color: '#9aa3b3', odds: {common: 75, uncommon: 22, rare: 3}},
+  {id: 'rare', name: 'Rare Ship Pack', color: '#3fa9ff', odds: {common: 30, uncommon: 40, rare: 25, epic: 5}},
+  {id: 'epic', name: 'Epic Ship Pack', color: '#9b5cff', odds: {uncommon: 25, rare: 40, epic: 28, legendary: 7}},
+  {id: 'legendary', name: 'Legendary Ship Pack', color: '#ffb800', odds: {rare: 30, epic: 40, legendary: 25, mythic: 5}},
+  {id: 'mythic', name: 'Mythic Ship Pack', color: '#ff3d7f', odds: {epic: 35, legendary: 40, mythic: 22, exotic: 3}},
+  {id: 'exotic', name: 'Exotic Ship Pack', color: '#19e3c4', odds: {legendary: 35, mythic: 40, exotic: 24, secret: 1}},
+];
+function curSkin() { return SKINS.find(k => k.id === save.skin) || PACK_SKINS.find(k => k.id === save.skin) || SKINS[0]; }
+function curBoat() { return BOATS.find(b => b.id === save.boat) || PACK_BOATS.find(b => b.id === save.boat) || BOATS[0]; }
+const UPGRADES = [
+  {id:'steer', name:'Steering', desc:'Turn faster on the slide'},
+  {id:'air', name:'Air Control', desc:'Steer better in the air'},
+  {id:'bonus', name:'Coin Bonus', desc:'+25% coins every win'},
+];
+const UPG_COST = [30, 60, 100, 160];
+
+function defaultSave() { return {coins: 0, owned: ['sunny'], skin: 'sunny', ownedBoats: ['tube'], boat: 'tube', upg: {steer: 0, air: 0, bonus: 0}, beaten: 0, skill: 0.5, revives: 2, xp: 0, cpClaimed: 0}; }
+function loadSave() {
+  try {
+    const s = JSON.parse(localStorage.getItem('slideSplash.v1'));
+    if (s && typeof s.coins === 'number') { const d = defaultSave(); return Object.assign(d, s, {upg: Object.assign(d.upg, s.upg)}); }
+  } catch (e) {}
+  return defaultSave();
+}
+function persist() { try { localStorage.setItem('slideSplash.v1', JSON.stringify(save)); } catch (e) {} }
+let save = loadSave();
+function params() {
+  const k = curSkin(), b = curBoat();
+  return {steer: (6 + 1.5 * save.upg.steer) * (1 + (k.steer || 0)) * (1 + (b.steer || 0)),
+    air: (1.0 + 0.15 * save.upg.air) * (1 + (k.air || 0)) * (1 + (b.air || 0)),
+    speedMul: Math.max(0.4, (1 + (k.spd || 0)) * (1 + (b.spd || 0))),
+    wall: (1 + (k.wall || 0)) * (1 + (b.wall || 0))};
+}
+
+// ---------- Sound effects (made with Web Audio, no files) ----------
+const Sfx = (() => {
+  let ctx = null, master = null, noiseBuf = null, slideGain = null, slideFilter = null, muted = false, musicOff = false, music = null;
+  try { muted = localStorage.getItem('slideSplash.muted') === '1'; musicOff = localStorage.getItem('slideSplash.musicOff') === '1'; } catch (e) {}
+  const MUSIC_VOL = 0.35;
+  function syncMusic() {
+    if (!music) return;
+    if (muted || musicOff) music.pause();
+    else { music.volume = MUSIC_VOL; const pr = music.play(); if (pr && pr.catch) pr.catch(() => {}); }
+  }
+  function startMusic() {
+    if (!music) { try { music = new Audio('music.mp3'); music.loop = true; music.preload = 'auto'; } catch (e) { music = null; } }
+    syncMusic();
+  }
+  function init() {
+    if (!music || music.paused) startMusic();
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return; }
+    try {
+      ctx = new (window.AudioContext || window.webkitAudioContext)();
+      master = ctx.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ctx.destination);
+      noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+      const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+      const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
+      slideFilter = ctx.createBiquadFilter(); slideFilter.type = 'bandpass'; slideFilter.frequency.value = 600; slideFilter.Q.value = 0.7;
+      slideGain = ctx.createGain(); slideGain.gain.value = 0;
+      src.connect(slideFilter); slideFilter.connect(slideGain); slideGain.connect(master); src.start();
+    } catch (e) { ctx = null; }
+  }
+  function tone(freq, dur, type, vol, to, delay) {
+    if (!ctx) return;
+    const t = ctx.currentTime + (delay || 0), o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+    if (to) o.frequency.exponentialRampToValueAtTime(to, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol || 0.2, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function noise(dur, freq, vol, type, delay, toFreq) {
+    if (!ctx) return;
+    const t = ctx.currentTime + (delay || 0), src = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
+    src.buffer = noiseBuf; f.type = type || 'lowpass'; f.frequency.setValueAtTime(freq, t);
+    if (toFreq) f.frequency.exponentialRampToValueAtTime(toFreq, t + dur);
+    g.gain.setValueAtTime(vol || 0.3, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(master); src.start(t, Math.random()); src.stop(t + dur + 0.05);
+  }
+  return {
+    init,
+    isMuted: () => muted,
+    setMuted(m) { muted = m; try { localStorage.setItem('slideSplash.muted', m ? '1' : '0'); } catch (e) {} if (master) master.gain.value = m ? 0 : 0.7; syncMusic(); },
+    isMusicOff: () => musicOff,
+    setMusicOff(m) { musicOff = m; try { localStorage.setItem('slideSplash.musicOff', m ? '1' : '0'); } catch (e) {} startMusic(); },
+    slide(state, speed) {
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const vol = state === 'slide' ? 0.05 + Math.min(speed, 45) * 0.005 : state === 'air' ? 0.04 : 0;
+      slideGain.gain.setTargetAtTime(vol, t, 0.08);
+      slideFilter.frequency.setTargetAtTime(state === 'air' ? 1800 : 300 + speed * 25, t, 0.1);
+    },
+    click() { tone(660, 0.06, 'triangle', 0.12); },
+    jump() { tone(280, 0.2, 'square', 0.12, 760); },
+    airJump() { tone(420, 0.22, 'square', 0.12, 1100); noise(0.3, 800, 0.2, 'bandpass', 0, 3000); },
+    launch() { noise(0.45, 600, 0.3, 'bandpass', 0, 2400); tone(220, 0.35, 'sine', 0.1, 520); },
+    fall() { tone(500, 0.6, 'sine', 0.12, 150); },
+    land() { noise(0.15, 350, 0.45); tone(120, 0.12, 'sine', 0.2, 70); },
+    loop() { tone(330, 1.1, 'triangle', 0.1, 990); noise(1.0, 400, 0.15, 'bandpass', 0, 2000); },
+    splash() { noise(0.8, 1400, 0.6, 'lowpass', 0, 300); noise(0.5, 3500, 0.25, 'highpass', 0.04); tone(180, 0.25, 'sine', 0.25, 60); },
+    splat() { noise(0.3, 600, 0.6); tone(160, 0.4, 'sawtooth', 0.18, 45); tone(90, 0.3, 'square', 0.12, 40, 0.05); },
+    boing() { tone(160, 0.45, 'sine', 0.3, 640); },
+    coin() { [988, 1319, 1760].forEach((f, i) => tone(f, 0.18, 'square', 0.08, null, i * 0.08)); },
+    buy() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.15, 'triangle', 0.12, null, i * 0.06)); },
+    nope() { tone(200, 0.18, 'square', 0.1, 120); },
+  };
+})();
+addEventListener('pointerdown', () => Sfx.init(), true);
+addEventListener('keydown', () => Sfx.init(), true);
+document.addEventListener('click', e => { if (e.target.closest('.big, .tile:not(.locked), .iconbtn')) Sfx.click(); });
+
+// ---------- Three.js scene ----------
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x8fd3ff);
+scene.fog = new THREE.Fog(0x8fd3ff, 200, 700);
+const cam = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1600);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x5a8f4a, 0.75));
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(-40, 80, -20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, {left: -60, right: 60, top: 60, bottom: -60, near: 1, far: 300});
+scene.add(sun, sun.target);
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshLambertMaterial({color: 0x6ccf5f}));
+ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true;
+scene.add(ground);
+
+// ---------- Blocky baby avatar ----------
+function pixelTex(draw, size) {
+  const c = document.createElement('canvas'); c.width = c.height = size || 8;
+  const g = c.getContext('2d'); draw(g, c.width);
+  const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  return t;
+}
+// grey speckle so the tint colour looks like chunky pixels
+function noiseTex(seed, lo) {
+  lo = lo || 210;
+  let s = seed;
+  const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  return pixelTex((g, n) => { for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const v = Math.floor(lo + rnd() * (255 - lo)); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1); } });
+}
+const faceTex = pixelTex((g) => {
+  const px = (x, y, c) => { g.fillStyle = c; g.fillRect(x, y, 1, 1); };
+  let s = 7; const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const v = Math.floor(232 + rnd() * 18); px(x, y, `rgb(255,${v - 20},${v - 50})`); }
+  px(1, 3, '#ffffff'); px(2, 3, '#2b2b2b'); px(5, 3, '#2b2b2b'); px(6, 3, '#ffffff');
+  px(1, 5, '#ff9aa8'); px(6, 5, '#ff9aa8');
+  px(3, 5, '#a14a3c'); px(4, 5, '#a14a3c'); px(3, 6, '#7a2e25'); px(4, 6, '#7a2e25');
+});
+const bodyNoise = noiseTex(3), skinNoise = noiseTex(11, 238);
+const babyMat = new THREE.MeshLambertMaterial({color: 0xffd23f, map: bodyNoise});
+const skinMat = new THREE.MeshLambertMaterial({color: 0xffe3c9, map: skinNoise});
+const faceMat = new THREE.MeshLambertMaterial({map: faceTex});
+const player = new THREE.Group();
+const babyBody = new THREE.Group();
+player.add(babyBody);
+const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); m.castShadow = true; return m; };
+(function makeBaby() {
+  // BoxGeometry face order: +x, -x, +y, -y, +z (front), -z
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 0.8), [skinMat, skinMat, skinMat, skinMat, faceMat, skinMat]);
+  head.position.set(0, 1.25, 0); head.castShadow = true;
+  const tuft = box(0.14, 0.14, 0.14, babyMat, 0, 1.72, -0.05);
+  const body = box(0.7, 0.75, 0.45, babyMat, 0, 0.5, 0);
+  const armL = box(0.24, 0.62, 0.24, babyMat, 0.48, 0.62, 0.08); armL.rotation.x = -0.7;
+  const armR = armL.clone(); armR.position.x = -0.48;
+  const legL = box(0.3, 0.26, 0.62, babyMat, 0.18, 0.14, 0.32);
+  const legR = legL.clone(); legR.position.x = -0.18;
+  const footL = box(0.3, 0.28, 0.12, skinMat, 0.18, 0.16, 0.68), footR = footL.clone(); footR.position.x = -0.18;
+  babyBody.add(head, tuft, body, armL, armR, legL, legR, footL, footR);
+})();
+
+const hats = {};
+(function makeHats() {
+  const M = (c, extra) => new THREE.MeshLambertMaterial(Object.assign({color: c, map: noiseTex(c % 97)}, extra || {}));
+  const add = (id, ...meshes) => { const g = new THREE.Group(); g.add(...meshes); g.visible = false; babyBody.add(g); hats[id] = g; };
+  const red = M(0xff2d55);
+  add('bow', box(0.2, 0.18, 0.1, red, 0.15, 1.73, 0), box(0.2, 0.18, 0.1, red, -0.15, 1.73, 0), box(0.1, 0.12, 0.12, M(0xc4103a), 0, 1.73, 0));
+  const leaf = box(0.14, 0.05, 0.4, M(0x2f9e44), 0.06, 1.8, 0); leaf.rotation.y = 0.5;
+  add('leaf', leaf, box(0.05, 0.14, 0.05, M(0x6b4423), 0, 1.72, 0));
+  const purple = M(0x6a3df0);
+  add('cap', box(0.86, 0.22, 0.86, purple, 0, 1.69, 0), box(0.86, 0.06, 0.32, purple, 0, 1.6, 0.56));
+  const frame = M(0x1f78c4), lens = new THREE.MeshBasicMaterial({color: 0x8be9ff});
+  add('goggles', box(0.84, 0.12, 0.84, frame, 0, 1.32, 0), box(0.24, 0.2, 0.06, lens, 0.18, 1.33, 0.43), box(0.24, 0.2, 0.06, lens, -0.18, 1.33, 0.43));
+  add('bubble', box(0.3, 0.3, 0.3, new THREE.MeshLambertMaterial({color: 0xff8ad8, transparent: true, opacity: 0.85}), 0, 1.05, 0.58));
+  add('visor', box(0.84, 0.16, 0.84, M(0x161616), 0, 1.32, 0), box(0.74, 0.14, 0.05, new THREE.MeshBasicMaterial({color: 0x34f5c5}), 0, 1.32, 0.44));
+  const gold = M(0xffc400, {emissive: 0x553300});
+  const crown = [box(0.84, 0.16, 0.08, gold, 0, 1.73, 0.38), box(0.84, 0.16, 0.08, gold, 0, 1.73, -0.38), box(0.08, 0.16, 0.84, gold, 0.38, 1.73, 0), box(0.08, 0.16, 0.84, gold, -0.38, 1.73, 0)];
+  for (const [x, z] of [[0.38, 0.38], [-0.38, 0.38], [0.38, -0.38], [-0.38, -0.38], [0, 0.38], [0, -0.38], [0.38, 0], [-0.38, 0]]) crown.push(box(0.1, 0.12, 0.1, gold, x, 1.87, z));
+  crown.push(box(0.1, 0.1, 0.06, new THREE.MeshBasicMaterial({color: 0xff2d55}), 0, 1.74, 0.43));
+  add('crown', ...crown);
+  const haloMat = new THREE.MeshBasicMaterial({color: 0xfff27a});
+  add('halo', box(0.6, 0.07, 0.08, haloMat, 0, 2.0, 0.27), box(0.6, 0.07, 0.08, haloMat, 0, 2.0, -0.27), box(0.08, 0.07, 0.62, haloMat, 0.27, 2.0, 0), box(0.08, 0.07, 0.62, haloMat, -0.27, 2.0, 0));
+})();
+const boats = {}, flames = [];
+// Any boat = a shape (tube / raft / speed / rocket) + three colours.
+const SHOP_PAL = {tube: [0xff8c1a, 0xffffff, 0x2fa8ff], raft: [0xa0662d, 0x8a5424, 0xff2d55], speed: [0xf4f4f4, 0xff2d55, 0x333333], rocket: [0x7b3cff, 0xffc400, 0x2b2d42]};
+const BOAT_SEAT = {tube: 0.08, raft: 0.3, speed: 0.32, rocket: 0.34};
+function buildBoat(shape, pal) {
+  const M = (c, extra) => new THREE.MeshLambertMaterial(Object.assign({color: c, map: noiseTex(c % 89 + 1)}, extra || {}));
+  const [ca, cb, cc] = pal, g = new THREE.Group();
+  if (shape === 'tube') {
+    const a = M(ca), b = M(cb);
+    g.add(box(1.5, 0.38, 0.34, a, 0, 0.19, 0.58), box(1.5, 0.38, 0.34, a, 0, 0.19, -0.58),
+      box(0.34, 0.38, 0.82, b, 0.58, 0.19, 0), box(0.34, 0.38, 0.82, b, -0.58, 0.19, 0), box(0.9, 0.06, 0.9, M(cc), 0, 0.04, 0));
+  } else if (shape === 'raft') {
+    [-0.64, -0.32, 0, 0.32, 0.64].forEach((x, i) => g.add(box(0.3, 0.3, 2.0, M(i % 2 ? cb : ca), x, 0.15, 0)));
+    const dk = M(cb);
+    g.add(box(1.7, 0.08, 0.2, dk, 0, 0.33, 0.7), box(1.7, 0.08, 0.2, dk, 0, 0.33, -0.7), box(0.09, 1.4, 0.09, dk, 0, 1.0, -0.8), box(0.5, 0.3, 0.04, M(cc), 0.27, 1.5, -0.8));
+  } else if (shape === 'speed') {
+    const a = M(ca), b = M(cb);
+    const nose = box(1.06, 0.5, 1.06, a, 0, 0.25, 1.0); nose.rotation.y = Math.PI / 4;
+    const glass = box(1.2, 0.42, 0.06, new THREE.MeshLambertMaterial({color: 0x9fe6ff, transparent: true, opacity: 0.6}), 0, 0.72, 0.72); glass.rotation.x = -0.45;
+    g.add(box(1.5, 0.5, 2.0, a, 0, 0.25, 0), nose, box(1.52, 0.1, 2.02, b, 0, 0.38, 0), glass, box(0.5, 0.35, 0.3, M(cc), 0, 0.3, -1.15));
+  } else {
+    const a = M(ca), b = M(cb, {emissive: 0x332200}), dk = M(cc);
+    const rn = box(1.06, 0.5, 1.06, a, 0, 0.25, 1.05); rn.rotation.y = Math.PI / 4;
+    g.add(box(1.5, 0.5, 2.1, a, 0, 0.25, 0), rn, box(1.52, 0.1, 2.12, b, 0, 0.42, 0), box(0.22, 0.6, 0.6, b, 0.85, 0.45, -0.7), box(0.22, 0.6, 0.6, b, -0.85, 0.45, -0.7));
+    for (const x of [0.45, -0.45]) {
+      g.add(box(0.38, 0.38, 0.7, dk, x, 0.35, -1.25));
+      const fl = box(0.28, 0.28, 0.6, new THREE.MeshBasicMaterial({color: 0xffa31a}), x, 0.35, -1.85); fl.castShadow = false;
+      const core = box(0.14, 0.14, 0.4, new THREE.MeshBasicMaterial({color: 0xfff27a}), x, 0.35, -1.75); core.castShadow = false;
+      flames.push(fl, core); g.add(fl, core);
+    }
+  }
+  return g;
+}
+function boatShape(b) { return b.shape || b.id; }
+function getBoatModel(b) {
+  if (!boats[b.id]) { const g = buildBoat(boatShape(b), b.pal || SHOP_PAL[boatShape(b)]); g.visible = false; player.add(g); boats[b.id] = g; }
+  return boats[b.id];
+}
+function applyBoat() {
+  const b = curBoat(); getBoatModel(b);
+  for (const id in boats) boats[id].visible = id === b.id;
+  babyBody.position.y = BOAT_SEAT[boatShape(b)] || 0;
+}
+scene.add(player);
+function applySkin() {
+  const s = curSkin();
+  if (s.color !== 'rainbow') babyMat.color.set(s.color);
+  for (const id in hats) hats[id].visible = id === s.hat;
+}
+applySkin();
+applyBoat();
+
+const PLAYER_SCALE = 1.4; // bigger boat + baby
+const aimMark = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.4, 28), new THREE.MeshBasicMaterial({color: 0x34f5c5, transparent: true, opacity: 0.85, depthWrite: false, side: THREE.DoubleSide}));
+aimMark.rotation.x = -Math.PI / 2; aimMark.visible = false;
+scene.add(aimMark);
+function updateAim() {
+  if (!curSkin().aim || mode !== 'play' || !p.air) { aimMark.visible = false; return; }
+  const q = Object.assign({}, p);
+  for (let i = 0; i < 900; i++) {
+    const ev = step(q, level, steerValue(), P, false);
+    if (ev === 'land') { aimMark.material.color.set(0x34f5c5); aimMark.position.set(q.x, q.y + 0.1, q.z); aimMark.visible = true; return; }
+    if (q.air && q.y <= WATER) {
+      const ok = inPool(level.pool, q.x, q.z, curSkin().edge || 0);
+      aimMark.material.color.set(ok ? 0x34f5c5 : 0xff4d4d);
+      aimMark.position.set(q.x, ok ? 0.47 : 0.06, q.z); aimMark.visible = true; return;
+    }
+  }
+  aimMark.visible = false;
+}
+const shadow = new THREE.Mesh(new THREE.CircleGeometry(0.9, 20), new THREE.MeshBasicMaterial({color: 0x000000, transparent: true, opacity: 0.3, depthWrite: false}));
+shadow.rotation.x = -Math.PI / 2;
+scene.add(shadow);
+
+// ---------- Level building ----------
+const STRIPE_COLORS = ['#ff5a8a', '#3fa9ff', '#ffd23f', '#36c46a', '#9b5cff', '#ff8c1a', '#22d3ee', '#f43f5e', '#a3e635', '#ffffff', '#ff4dd8'];
+function randStripe(prev) { let c; do { c = STRIPE_COLORS[Math.floor(Math.random() * STRIPE_COLORS.length)]; } while (c === prev); return c; }
+let levelGroup = null, level = null, levelIdx = 0, camBlockers = [];
+
+function primMesh(pr, mat, h, topY, m) {
+  let geo;
+  if (pr.t === 'c') geo = new THREE.CylinderGeometry(pr.r + m, pr.r + m, h, 40);
+  else if (pr.t === 'r') geo = new THREE.BoxGeometry(pr.w + 2 * m, h, pr.d + 2 * m);
+  else geo = new THREE.CylinderGeometry(pr.r + 2 * m, pr.r + 2 * m, h, 3);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(pr.x || 0, topY - h / 2, pr.z || 0);
+  return mesh;
+}
+
+// The slide: a curved trough (flat middle, walls curving up at the edges), striped in random colours,
+// with flowing water in it. Built in chunks so the camera can quickly check what's in its way.
+const WATER_IN_SLIDE = 0.28;
+const waterTex = (() => {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 64;
+  const g = c.getContext('2d'); g.fillStyle = '#7fdcff'; g.fillRect(0, 0, 16, 64);
+  for (let k = 0; k < 22; k++) { g.fillStyle = Math.random() < 0.5 ? 'rgba(255,255,255,0.55)' : 'rgba(40,150,230,0.5)'; g.fillRect(Math.floor(Math.random() * 16), Math.floor(Math.random() * 64), 1 + Math.floor(Math.random() * 2), 3 + Math.floor(Math.random() * 8)); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = t.minFilter = THREE.NearestFilter;
+  return t;
+})();
+const waterMatSlide = new THREE.MeshLambertMaterial({map: waterTex, color: 0xbfefff, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.DoubleSide});
+function slideMeshes(run) {
+  const S = run.samples, hw = run.w / 2, out = [], CHUNK = 120;
+  const white = new THREE.Color(0xffffff), under = new THREE.Color(0xd9dde6), stripe = new THREE.Color(), stripe2 = new THREE.Color();
+  const COLS = 10, us = [];
+  for (let c = 0; c <= COLS; c++) us.push(-hw + 2 * hw * c / COLS);
+  const flat = hw * FLAT, uw = flat + (hw - flat) * Math.sqrt(WATER_IN_SLIDE / WALL_H); // water reaches this far up the walls
+  const nrm = s => [-s.rz * s.ty, s.rz * s.tx - s.rx * s.tz, s.rx * s.ty];
+  const pt = (s, u, up, n) => [s.x + s.rx * u + n[0] * up, s.y + n[1] * up, s.z + s.rz * u + n[2] * up];
+  let last = null;
+  for (let c0 = 0; c0 < S.length - 1; c0 += CHUNK) {
+    const pos = [], col = [], wpos = [], wuv = [];
+    const quad = (a, b, c, d, cl) => { pos.push(...a, ...b, ...c, ...a, ...c, ...d); for (let k = 0; k < 6; k++) col.push(cl.r, cl.g, cl.b); };
+    for (let i = c0; i < Math.min(S.length - 1, c0 + CHUNK); i++) {
+      if (i % 5 === 0) { last = randStripe(last); stripe.set(last); stripe2.copy(stripe).multiplyScalar(0.85); }
+      const A = S[i], B = S[i + 1], nA = nrm(A), nB = nrm(B);
+      for (let c = 0; c < COLS; c++) {
+        const u0 = us[c], u1 = us[c + 1], h0 = wallHeight(run, u0), h1 = wallHeight(run, u1);
+        quad(pt(A, u0, h0, nA), pt(B, u0, h0, nB), pt(B, u1, h1, nB), pt(A, u1, h1, nA), Math.abs((u0 + u1) / 2) > flat ? stripe2 : stripe);
+      }
+      const top = WALL_H + 0.15, aLt = pt(A, -hw, top, nA), bLt = pt(B, -hw, top, nB), aRt = pt(A, hw, top, nA), bRt = pt(B, hw, top, nB);
+      const aLd = pt(A, -hw - 0.2, -0.45, nA), bLd = pt(B, -hw - 0.2, -0.45, nB), aRd = pt(A, hw + 0.2, -0.45, nA), bRd = pt(B, hw + 0.2, -0.45, nB);
+      quad(pt(A, -hw, WALL_H, nA), pt(B, -hw, WALL_H, nB), bLt, aLt, white);
+      quad(aRt, bRt, pt(B, hw, WALL_H, nB), pt(A, hw, WALL_H, nA), white);
+      quad(aLd, bLd, bLt, aLt, white);
+      quad(aRt, bRt, bRd, aRd, white);
+      quad(aLd, aRd, bRd, bLd, under);
+      if (!A.loop) { // water surface
+        const wa = pt(A, -uw, WATER_IN_SLIDE, nA), wb = pt(B, -uw, WATER_IN_SLIDE, nB), wc = pt(B, uw, WATER_IN_SLIDE, nB), wd = pt(A, uw, WATER_IN_SLIDE, nA);
+        wpos.push(...wa, ...wb, ...wc, ...wa, ...wc, ...wd);
+        const v0 = i * DS / 6, v1 = (i + 1) * DS / 6;
+        wuv.push(0, v0, 0, v1, 1, v1, 0, v0, 1, v1, 1, v0);
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    g.computeVertexNormals(); g.computeBoundingSphere();
+    const m = new THREE.Mesh(g, new THREE.MeshLambertMaterial({vertexColors: true, side: THREE.DoubleSide}));
+    m.castShadow = true; m.receiveShadow = true; m.userData.slide = true;
+    out.push(m);
+    if (wpos.length) {
+      const wg = new THREE.BufferGeometry();
+      wg.setAttribute('position', new THREE.Float32BufferAttribute(wpos, 3));
+      wg.setAttribute('uv', new THREE.Float32BufferAttribute(wuv, 2));
+      wg.computeVertexNormals();
+      const wm = new THREE.Mesh(wg, waterMatSlide); wm.renderOrder = 2; wm.userData.keepMat = true;
+      out.push(wm);
+    }
+  }
+  return out;
+}
+
+// true if another part of the slide passes underneath this spot (a pillar there would poke through it)
+function slideUnder(sm, ri, k) {
+  const cx = Math.floor(sm.x / level.cell), cz = Math.floor(sm.z / level.cell);
+  for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) {
+    const list = level.grid.get((cx + a) + ',' + (cz + c));
+    if (list) for (let q = 0; q < list.length; q += 2) {
+      const j = list[q], i = list[q + 1], o = level.runs[j].samples[i];
+      if (o.loop || (j === ri && Math.abs(i - k) < 30)) continue;
+      if (o.y < sm.y - 1 && Math.hypot(o.x - sm.x, o.z - sm.z) < level.runs[j].w / 2 + 1.2) return true;
+    }
+  }
+  return false;
+}
+function loadLevel(i) {
+  levelIdx = i;
+  if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.dispose && !o.userData.keepMat) o.material.dispose(); }); }
+  level = getLevel(i + 1, save.skill);
+  levelGroup = new THREE.Group(); camBlockers = [];
+  const pillarMat = new THREE.MeshLambertMaterial({color: 0xf2f2f2});
+  const pillarSpots = [];
+  level.runs.forEach((run, ri) => {
+    for (const m of slideMeshes(run)) { levelGroup.add(m); if (m.userData.slide) camBlockers.push(m); }
+    const S = run.samples;
+    for (let k = 6; k < S.length; k += 22) if (!S[k].loop && S[k].y > 1.5 && !slideUnder(S[k], ri, k)) pillarSpots.push(S[k]);
+    if (run.kick > 0) {
+      const e = S[S.length - 1], g = new THREE.Group();
+      const kick = new THREE.Mesh(new THREE.BoxGeometry(run.w, 0.3, 1.1), new THREE.MeshLambertMaterial({color: new THREE.Color(randStripe(null))}));
+      kick.rotation.x = -0.35; kick.position.set(0, 0.2, -0.2); g.add(kick);
+      g.position.set(e.x, e.y, e.z); g.rotation.y = Math.atan2(e.tx, e.tz);
+      levelGroup.add(g);
+    }
+    if (ri === 0) {
+      const s0 = S[0], plat = new THREE.Mesh(new THREE.BoxGeometry(run.w + 3, 0.6, 5), pillarMat);
+      plat.position.set(s0.x - Math.sin(0) * 2.5, s0.y - 0.3, s0.z - 2.5);
+      levelGroup.add(plat);
+    }
+  });
+  // support pillars (one instanced mesh)
+  const pil = new THREE.InstancedMesh(new THREE.BoxGeometry(0.5, 1, 0.5), pillarMat, pillarSpots.length);
+  const mtx = new THREE.Matrix4();
+  pillarSpots.forEach((s, k) => { const h = s.y - 0.45; mtx.makeScale(1, h, 1); mtx.setPosition(s.x, h / 2, s.z); pil.setMatrixAt(k, mtx); });
+  pil.castShadow = true; levelGroup.add(pil); camBlockers.push(pil);
+  // trees and clouds around the track
+  const all = level.runs.flatMap(r => r.samples);
+  const trees = 220, trunkI = new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, 3, 0.8), new THREE.MeshLambertMaterial({color: 0x8b5a2b}), trees);
+  const leafI = new THREE.InstancedMesh(new THREE.ConeGeometry(2.4, 5, 6), new THREE.MeshLambertMaterial({color: 0x2f9e44}), trees);
+  for (let k = 0; k < trees; k++) {
+    const s = all[Math.floor(Math.random() * all.length)], side = Math.random() < 0.5 ? -1 : 1, off = 14 + Math.random() * 60;
+    let x = s.x + s.rx * side * off, z = s.z + s.rz * side * off;
+    if (Math.hypot(x - level.pool.cx, z - level.pool.cz) < 20) x += 40;
+    mtx.makeTranslation(x, 1.5, z); trunkI.setMatrixAt(k, mtx);
+    mtx.makeTranslation(x, 5, z); leafI.setMatrixAt(k, mtx);
+  }
+  leafI.castShadow = true; levelGroup.add(trunkI, leafI);
+  const cloudMat = new THREE.MeshLambertMaterial({color: 0xffffff});
+  for (let k = 0; k < 40; k++) {
+    const s = all[Math.floor(Math.random() * all.length)], g = new THREE.Group();
+    for (let j = 0; j < 4; j++) { const m = new THREE.Mesh(new THREE.BoxGeometry(6 + Math.random() * 5, 3 + Math.random() * 2, 5 + Math.random() * 4), cloudMat); m.position.set(j * 5 - 7, Math.random() * 2, Math.random() * 3); g.add(m); }
+    const side = Math.random() < 0.5 ? -1 : 1, off = 90 + Math.random() * 200;
+    g.position.set(s.x + s.rx * side * off, level.H * (0.5 + Math.random() * 0.9) + 20, s.z + s.rz * side * off);
+    levelGroup.add(g);
+  }
+  // pool
+  const pool = level.pool, pg = new THREE.Group();
+  const rimMat = new THREE.MeshLambertMaterial({color: 0xf4f1ea});
+  const waterMat = new THREE.MeshLambertMaterial({color: 0x2fa8ff, transparent: true, opacity: 0.9});
+  for (const pr of pool.prims) pg.add(primMesh(pr, rimMat, 0.6, 0.35, 0.9));
+  for (const pr of pool.prims) pg.add(primMesh(pr, waterMat, 0.6, 0.42, 0));
+  if (pool.holes) for (const h of pool.holes) {
+    const isl = new THREE.Mesh(new THREE.CylinderGeometry(h.r, h.r + 0.3, 0.8, 32), new THREE.MeshLambertMaterial({color: 0xf0d58c}));
+    isl.position.set(h.x || 0, 0.3, h.z || 0); pg.add(isl);
+    const palm = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.5, 7), new THREE.MeshLambertMaterial({color: 0x2f9e44}));
+    palm.position.set(h.x || 0, 2.5, h.z || 0); pg.add(palm);
+  }
+  pg.position.set(pool.cx, 0, pool.cz); pg.rotation.y = pool.yaw;
+  levelGroup.add(pg);
+  scene.add(levelGroup);
+  resetPlayer();
+}
+
+// ---------- Game state ----------
+let mode = 'menu', p = null, P = params(), endTimer = 0, splashes = [], tNow = 0, camYaw = 0;
+const camLook = new THREE.Vector3(), camWant = new THREE.Vector3();
+const qTarget = new THREE.Quaternion(), qRoll = new THREE.Quaternion(), mBasis = new THREE.Matrix4();
+const vX = new THREE.Vector3(), vY = new THREE.Vector3(), vZ = new THREE.Vector3(), Z_AXIS = new THREE.Vector3(0, 0, 1);
+
+function headingYaw() {
+  if (p.air) return Math.atan2(p.hx, p.hz);
+  const S = level.runs[p.run].samples, a = S[clamp(Math.floor(p.s / DS), 0, S.length - 1)];
+  return a.loop ? camYaw : Math.atan2(a.tx, a.tz) - (p.phi || 0);
+}
+function resetPlayer() {
+  p = startState(level); shortcuts = 0; hopFrom = null; lastSafe = null;
+  player.scale.setScalar(PLAYER_SCALE); player.visible = true;
+  camYaw = headingYaw();
+  placePlayer(); orientPlayer(1);
+  cam.position.set(p.x - Math.sin(camYaw) * 12, p.y + 7, p.z - Math.cos(camYaw) * 12);
+  camLook.set(p.x, p.y, p.z);
+}
+
+const input = {left: false, right: false, kl: false, kr: false};
+function steerValue() { return ((input.right || input.kr) ? 1 : 0) - ((input.left || input.kl) ? 1 : 0); }
+
+let jumpQueued = false;
+function doJump() { if (mode === 'play') jumpQueued = true; }
+let shortcuts = 0, hopFrom = null;
+function physTick() {
+  const before = p.air ? null : {run: p.run, s: p.s};
+  if (jumpQueued) {
+    jumpQueued = false;
+    const j = jump(p, level, curBoat().airJump, steerValue());
+    if (j) { jumpFx(); j === 'air' ? Sfx.airJump() : Sfx.jump(); if (before) hopFrom = before; }
+  }
+  const ev = step(p, level, steerValue(), P, false);
+  trackSafeSpot();
+  if (ev === 'launch') { Sfx.launch(); hopFrom = null; }
+  else if (ev === 'falloff') { Sfx.fall(); hopFrom = before; }
+  else if (ev === 'loop') Sfx.loop();
+  else if (ev === 'bonk') Sfx.land();
+  else if (ev === 'land') {
+    Sfx.land();
+    // landed further down the slide after jumping or sliding off = shortcut
+    if (hopFrom && (p.run > hopFrom.run || p.s - hopFrom.s > 25)) { shortcuts++; toast('Shortcut! +3 coins'); Sfx.coin(); }
+    hopFrom = null;
+  }
+  if (p.air && p.y <= WATER) {
+    const k = curSkin();
+    if (inPool(level.pool, p.x, p.z, k.edge || 0)) win();
+    else if (k.bounce && !p.bounced) { p.bounced = true; p.y = WATER + 0.01; p.vy = 13; toast('Boing! One more try'); Sfx.boing(); }
+    else die();
+  }
+}
+
+// Your skill goes up more for beating a level you were unlikely to beat, and down more for losing an easy one.
+function pct(v) { return Math.round(v * 100) + '%'; }
+function updateSkill(won) {
+  const ch = level.chance == null ? 0.5 : level.chance;
+  save.skill = clamp(save.skill + (won ? 0.08 * (1 - ch) : -0.06 * ch), 0.05, 0.98);
+}
+function jumpFx() { player.scale.set(0.8 * PLAYER_SCALE, 1.3 * PLAYER_SCALE, 0.8 * PLAYER_SCALE); setTimeout(() => { if (mode === 'play') player.scale.setScalar(PLAYER_SCALE); }, 160); }
+function win() {
+  mode = 'won'; endTimer = 1.0; p.y = WATER; Sfx.splash();
+  player.visible = false;
+  for (let i = 0; i < 30; i++) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.3, 0.3), new THREE.MeshLambertMaterial({color: 0xbfe8ff}));
+    m.position.set(p.x, WATER, p.z);
+    const a = Math.random() * Math.PI * 2, sp = 2 + Math.random() * 5;
+    m.userData.v = new THREE.Vector3(Math.cos(a) * sp, 7 + Math.random() * 7, Math.sin(a) * sp);
+    scene.add(m); splashes.push(m);
+  }
+  const reward = Math.round(level.reward * (1 + 0.25 * save.upg.bonus + (curSkin().coin || 0) + (curBoat().coin || 0))) + shortcuts * 3;
+  save.coins += reward;
+  const before = save.skill;
+  updateSkill(true);
+  save.beaten = Math.max(save.beaten, levelIdx + 1);
+  persist();
+  coinText('winCoinsTotal');
+  $('winCoins').textContent = '+' + reward + ' coins' + (shortcuts ? ' (' + shortcuts + ' shortcut' + (shortcuts > 1 ? 's' : '') + '!)' : '');
+  $('winSkill').textContent = 'Skill ' + pct(before) + ' → ' + pct(save.skill);
+  const gain = xpForWin(level), oldXP = save.xp;
+  save.xp += gain; persist();
+  $('winFlags').innerHTML = flagsHTML(levelRedFlags(level)) + ' &nbsp;<b>+' + gain + ' XP</b>';
+  startPassAnim(oldXP, save.xp);
+}
+function die() {
+  mode = 'dead'; endTimer = 0.8; Sfx.splat();
+  updateSkill(false); persist();
+  p.y = Math.max(p.y, 0);
+  $('loseText').textContent = inPool(level.pool, p.x, p.z, 1.6) ? 'So close! You hit the edge of the pool.' : 'You missed the pool.';
+}
+
+// highest slide surface under a point (for the shadow)
+function surfaceBelow(x, z, y) {
+  let best = -1;
+  const cx = Math.floor(x / level.cell), cz = Math.floor(z / level.cell);
+  for (let a = -1; a <= 1; a++) for (let c = -1; c <= 1; c++) {
+    const list = level.grid.get((cx + a) + ',' + (cz + c));
+    if (list) for (let k = 0; k < list.length; k += 2) {
+      const run = level.runs[list[k]], s = run.samples[list[k + 1]];
+      if (s.loop) continue;
+      const dx = x - s.x, dz = z - s.z, h = Math.hypot(s.tx, s.tz) || 1;
+      if (Math.abs((dx * s.tx + dz * s.tz) / h) > DS * 0.6 || Math.abs(dx * s.rx + dz * s.rz) > run.w / 2) continue;
+      if (s.y <= y + 0.05 && s.y > best) best = s.y;
+    }
+  }
+  return best;
+}
+function placePlayer() {
+  player.position.set(p.x, p.y + 0.05, p.z);
+  const sb = surfaceBelow(p.x, p.z, p.y);
+  const sy = sb >= 0 ? sb + 0.05 : (inPool(level.pool, p.x, p.z) ? 0.45 : 0.03);
+  shadow.position.set(p.x, sy + 0.02, p.z);
+  shadow.visible = player.visible && !(p && !p.air && level.runs[p.run].samples[clamp(Math.floor(p.s / DS), 0, level.runs[p.run].samples.length - 1)].loop);
+}
+// Point the boat where it is heading, tilted with the slide (works through loops, twirls and walls).
+// vR = boat's right, vZ = forward, vY = up. The model's +x is its left, so the basis uses -vR.
+const vR = new THREE.Vector3(), vN = new THREE.Vector3(), vT = new THREE.Vector3();
+function orientPlayer(rate) {
+  if (p.air) {
+    vZ.set(p.hx * p.vf, p.vy * 0.5, p.hz * p.vf).normalize();
+    vR.set(-p.hz, 0, p.hx);
+    vY.crossVectors(vR, vZ).normalize();
+  } else {
+    const run = level.runs[p.run], S = run.samples, a = S[clamp(Math.floor(p.s / DS), 0, S.length - 1)];
+    const c = Math.cos(p.phi || 0), sn = Math.sin(p.phi || 0);
+    vT.set(a.tx, a.ty, a.tz); vR.set(a.rx, 0, a.rz);
+    vN.crossVectors(vR, vT).normalize();                       // slide's up
+    vY.copy(vN).addScaledVector(vR, -wallSlope(run, p.u)).normalize(); // lean on the walls
+    vZ.copy(vT).multiplyScalar(c).addScaledVector(vR, sn);     // where the boat points
+    vZ.addScaledVector(vY, -vZ.dot(vY)).normalize();
+  }
+  vR.crossVectors(vZ, vY).normalize();                          // right = forward x up
+  vX.copy(vR).negate();
+  mBasis.makeBasis(vX, vY, vZ);
+  qTarget.setFromRotationMatrix(mBasis);
+  qRoll.setFromAxisAngle(Z_AXIS, mode === 'play' ? steerValue() * 0.25 : 0);
+  qTarget.multiply(qRoll);
+  player.quaternion.slerp(qTarget, rate);
+}
+
+// Camera spots to try, best first: [distance behind, height, swing left/right]
+const CAM_SPOTS = [[12, 7, 0], [12, 11, 0], [10, 15, 0], [12, 7, 0.7], [12, 7, -0.7], [9, 12, 1.2], [9, 12, -1.2], [7, 5, 0], [6, 10, 0], [4, 4, 0]];
+const camRay = new THREE.Raycaster(), camDir = new THREE.Vector3();
+function camBlocked(from, to) {
+  camDir.subVectors(to, from); const d = camDir.length(); if (d < 0.01) return false;
+  camRay.set(from, camDir.multiplyScalar(1 / d)); camRay.near = 0.8; camRay.far = d + 0.6;
+  return camRay.intersectObjects(camBlockers, false).length > 0;
+}
+function angleLerp(a, b, t) { let d = b - a; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return a + d * t; }
+
+function updateVisuals(dt) {
+  tNow += dt;
+  const skin = curSkin();
+  for (const fl of flames) fl.scale.z = 0.7 + Math.random() * 0.6 + (p && p.airJumped ? 0.8 : 0);
+  if (mode === 'play') Sfx.slide(p.air ? 'air' : 'slide', p.speed || 0); else Sfx.slide('off', 0);
+  if (skin.color === 'rainbow') { babyMat.color.setHSL((tNow * 0.25) % 1, 0.85, 0.55); hats.halo.children[0].material.color.setHSL((tNow * 0.25 + 0.5) % 1, 0.9, 0.7); }
+  hats.halo.rotation.y = tNow * 2;
+
+  if (mode === 'menu') {
+    const a = tNow * 0.3;
+    placePlayer(); orientPlayer(1);
+    cam.position.set(p.x + Math.sin(a) * 9, p.y + 4, p.z + Math.cos(a) * 9);
+    cam.lookAt(p.x, p.y + 1, p.z);
+    return;
+  }
+  const inLoop = !p.air && level.runs[p.run].samples[clamp(Math.floor(p.s / DS), 0, level.runs[p.run].samples.length - 1)].loop;
+  if (mode === 'play' || mode === 'ready') { placePlayer(); orientPlayer(Math.min(1, dt * (inLoop ? 25 : 12))); }
+  if (mode === 'dead') { placePlayer(); player.scale.lerp(new THREE.Vector3(1.5, 0.25, 1.5).multiplyScalar(PLAYER_SCALE), Math.min(1, dt * 18)); }
+  for (let i = splashes.length - 1; i >= 0; i--) {
+    const m = splashes[i]; m.userData.v.y -= G * dt; m.position.addScaledVector(m.userData.v, dt);
+    if (m.position.y < 0) { scene.remove(m); m.geometry.dispose(); m.material.dispose(); splashes.splice(i, 1); }
+  }
+  if (mode === 'won' || mode === 'dead') {
+    endTimer -= dt;
+    if (endTimer <= 0 && !document.querySelector('.overlay.show')) { showControls(false); if (mode === 'dead') refreshDeath(); show(mode === 'won' ? 'scrWin' : 'scrLose'); if (mode === 'won') Sfx.coin(); }
+  }
+  // chase camera: turns with the boat and moves around anything that would block the view
+  waterTex.offset.y -= dt * 1.6;
+  const f = 1 - Math.exp(-dt * 5);
+  const tgt = new THREE.Vector3(p.x, Math.max(p.y, WATER) + 1.2, p.z);
+  if (mode === 'play' || mode === 'ready') camYaw = angleLerp(camYaw, headingYaw(), Math.min(1, dt * 3.5));
+  const far = mode === 'play' || mode === 'ready' ? 1 : 1.25;
+  let picked = null;
+  for (const [back, up, off] of CAM_SPOTS) {
+    const a = camYaw + off, cand = new THREE.Vector3(tgt.x - Math.sin(a) * back * far, tgt.y + up * far, tgt.z - Math.cos(a) * back * far);
+    if (!camBlocked(tgt, cand)) { picked = cand; break; }
+  }
+  if (!picked) picked = new THREE.Vector3(tgt.x - Math.sin(camYaw) * 2.5, tgt.y + 2.5, tgt.z - Math.cos(camYaw) * 2.5);
+  camWant.copy(picked);
+  // if the current view is blocked, move a lot faster
+  // if something gets between you and the camera, jump straight to a clear view
+  if (camBlocked(tgt, cam.position)) cam.position.copy(camWant);
+  else {
+    const prev = cam.position.clone();
+    cam.position.lerp(camWant, mode === 'play' || mode === 'ready' ? f : f * 0.5);
+    if (camBlocked(tgt, cam.position)) cam.position.copy(prev.distanceTo(camWant) < 0.01 ? camWant : camWant);
+  }
+  const look = new THREE.Vector3(p.x + Math.sin(camYaw) * 6, Math.max(p.y, WATER) - 0.5, p.z + Math.cos(camYaw) * 6);
+  camLook.lerp(inLoop ? tgt : look, inLoop ? Math.min(1, dt * 10) : f);
+  cam.lookAt(camLook);
+  sun.position.set(p.x - 40, p.y + 80, p.z - 20); sun.target.position.set(p.x, p.y - 10, p.z);
+  updateAim();
+  updateHud();
+}
+
+// ---------- UI ----------
+const $ = id => document.getElementById(id);
+function show(id) { document.querySelectorAll('.overlay').forEach(o => o.classList.toggle('show', o.id === id)); }
+function showControls(on) {
+  $('hud').style.display = on ? 'flex' : 'none';
+  $('btnL').style.display = $('btnR').style.display = $('btnJ').style.display = on ? 'flex' : 'none';
+}
+function updateHud() {
+  $('hudLevel').textContent = 'Level ' + (levelIdx + 1);
+  $('hudCoins').textContent = '● ' + save.coins;
+}
+function coinText(el) { $(el).textContent = '● ' + save.coins + ' coins'; }
+
+function openMenu() {
+  mode = 'menu'; showControls(false); coinText('menuCoins');
+  $('menuSkill').textContent = 'Your skill: ' + pct(save.skill) + ' · ❤ ' + save.revives + ' revives · ' + xpLine(save.xp);
+  loadLevel(save.beaten); show('scrMenu');
+}
+// Levels never run out: show the next one plus the last few you beat.
+function openLevels() {
+  showControls(false);
+  const grid = $('levelGrid'); grid.innerHTML = '';
+  const next = save.beaten; // 0-based index of the first unbeaten level
+  for (let i = next; i >= Math.max(0, next - 19); i--) {
+    const n = i + 1, t = document.createElement('div');
+    t.className = 'tile' + (i < next ? ' sel' : '');
+    if (i === next) t.style.cssText = 'border-color:#ff5a8a;background:#fff0f5';
+    t.innerHTML = '<div style="font-size:26px">' + n + '</div>' + levelName(n) + '<small>' + (i === next ? '▶ next · ' : '✓ · ') + '● ' + levelReward(n) + '</small>';
+    t.onclick = () => openReady(i);
+    grid.appendChild(t);
+  }
+  show('scrLevels');
+}
+// Build the level, check every part is solid, and warm up the graphics before you can press GO.
+function setLoad(frac, text) { $('loadFill').style.width = Math.round(frac * 100) + '%'; $('loadText').textContent = text; }
+function solidCheck() {
+  // drop a test boat onto spots all along every slide and make sure each one catches it
+  let bad = 0;
+  level.runs.forEach((run, j) => {
+    for (let i = 4; i < run.samples.length - 4; i += 12) {
+      const sm = run.samples[i]; if (sm.loop) continue;
+      const q = startState(level); q.air = true; q.lastRun = -5; q.hx = 0; q.hz = 1; q.vf = 0; q.vy = -10; q.vl = 0;
+      q.x = sm.x; q.z = sm.z; q.y = sm.y + 2;
+      let ok = false;
+      for (let t = 0; t < 60; t++) { const ev = step(q, level, 0, P, false); if (ev === 'land' || ev === 'bonk') { ok = true; break; } }
+      if (!ok) bad++;
+    }
+  });
+  if (bad) finishLevel(level); // rebuild the collision map (should never be needed)
+  return bad;
+}
+function prepareLevel(i) {
+  P = params(); loadLevel(i); solidCheck(); renderer.compile(scene, cam);
+}
+function showReady(i) {
+  mode = 'ready'; showControls(true);
+
+  $('readyTitle').textContent = 'Level ' + (i + 1) + ': ' + level.name;
+  const chanceLine = '<br><b>Difficulty:</b> ' + flagsHTML(levelRedFlags(level)) + '<br><b>Chance to beat:</b> ' + pct(level.chance || 0) + ' at your skill (' + pct(save.skill) + ') · ❤ ' + save.revives + ' revives';
+  const k = curSkin(), b = curBoat();
+  const loops = level.runs.some(r => r.samples.some(s => s.loop));
+  const hint = level.jumpLevel ? 'The pool is too far! Press JUMP near the end of the last slide.' : 'Steer into every turn or you will fly off the edge! Jump off and land further down for a shortcut.';
+  $('readyText').innerHTML = 'Hold ◀ ▶ to steer (also in the air), tap JUMP to hop off, and hold a direction while jumping to leap sideways (keys: A/D or arrows, Space). Land in the pool!<br><b>' + b.name + ':</b> ' + b.perk + '<br><b>' + k.name + ':</b> ' + k.perk + '<br><b style="color:#ff5a8a">' + hint + '</b>' + chanceLine;
+  show('scrReady');
+}
+function openReady(i) {
+  showControls(false); show('scrLoad'); setLoad(0.08, 'Building a slide that fits your skill…');
+  setTimeout(() => {
+    P = params(); loadLevel(i); setLoad(0.55, 'Practice bots tested it: ' + pct(level.chance || 0) + ' chance for you. Making every part solid…');
+    setTimeout(() => {
+      const bad = solidCheck(); setLoad(0.85, bad ? 'Fixed ' + bad + ' weak spots…' : 'Warming up the graphics…');
+      setTimeout(() => {
+        renderer.compile(scene, cam); setLoad(1, 'Ready!');
+        setTimeout(() => showReady(i), 180);
+      }, 40);
+    }, 40);
+  }, 40);
+}
+function go() { mode = 'play'; acc = 0; jumpQueued = false; show(null); showControls(true); }
+function retry() { resetPlayer(); go(); }
+
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 1400); }
+
+function openShop() {
+  coinText('shopCoins');
+  const bgrid = $('boatGrid'); bgrid.innerHTML = '';
+  BOATS.forEach(b => {
+    const owned = save.ownedBoats.includes(b.id), on = save.boat === b.id;
+    const t = document.createElement('div');
+    t.className = 'tile' + (on ? ' sel' : '');
+    t.innerHTML = '<div class="swatch" style="background:' + b.color + ';display:flex;align-items:center;justify-content:center;font-size:24px">🚤</div>' + b.name + '<small>' + (on ? 'Riding' : owned ? 'Owned' : '● ' + b.price) + '</small><small style="color:#2a8a4f">' + b.perk + '</small>';
+    t.onclick = () => {
+      if (!owned) {
+        if (save.coins < b.price) { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); toast('Not enough coins'); Sfx.nope(); return; }
+        save.coins -= b.price; save.ownedBoats.push(b.id); Sfx.buy();
+      }
+      save.boat = b.id; applyBoat(); persist(); openShop();
+    };
+    bgrid.appendChild(t);
+  });
+  const grid = $('skinGrid'); grid.innerHTML = '';
+  SKINS.forEach(s => {
+    const owned = save.owned.includes(s.id), on = save.skin === s.id;
+    const t = document.createElement('div');
+    t.className = 'tile' + (on ? ' sel' : '');
+    const bg = s.color === 'rainbow' ? 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)' : s.color;
+    t.innerHTML = '<div class="swatch" style="background:' + bg + '"></div>' + s.name + '<small>' + (on ? 'Wearing' : owned ? 'Owned' : '● ' + s.price) + '</small><small style="color:#2a8a4f">' + s.perk + '</small>';
+    t.onclick = () => {
+      if (!owned) {
+        if (save.coins < s.price) { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); toast('Not enough coins'); Sfx.nope(); return; }
+        save.coins -= s.price; save.owned.push(s.id); Sfx.buy();
+      }
+      save.skin = s.id; applySkin(); persist(); openShop();
+    };
+    grid.appendChild(t);
+  });
+  // pack collection: owned ones can be equipped, the rest show as ??? with their rarity
+  const packTile = (it, grid) => {
+    const r = RAR[it.rarity], owned = ownsItem(it), on = (it.kind === 'boat' ? save.boat : save.skin) === it.id;
+    const t = document.createElement('div');
+    t.className = 'tile' + (on ? ' sel' : '') + (owned ? '' : ' locked');
+    t.style.borderColor = on ? '#36c46a' : r.color;
+    const badge = '<span class="rar' + (r.id === 'secret' ? ' secretglow' : '') + '" style="background:' + (r.id === 'secret' ? '' : r.color) + '">' + r.name + '</span>';
+    t.innerHTML = owned
+      ? '<img src="' + packIconURL(it, r.id === 'secret' ? '#333' : r.color) + '" style="width:46px;height:46px;image-rendering:pixelated;border-radius:8px"><br>' + it.name + '<br>' + badge + '<small style="color:#2a8a4f">' + it.perk + '</small><small>' + (on ? (it.kind === 'boat' ? 'Riding' : 'Wearing') : 'Tap to use') + '</small>'
+      : '<div style="font-size:30px">❔</div>' + (r.id === 'secret' ? 'Secret ???' : '???') + '<br>' + badge + '<small>' + (r.id === 'secret' ? '1% from Exotic packs' : 'Find it in packs') + '</small>';
+    if (owned) t.onclick = () => { if (it.kind === 'boat') { save.boat = it.id; applyBoat(); } else { save.skin = it.id; applySkin(); } persist(); openShop(); };
+    grid.appendChild(t);
+  };
+  $('packBoatGrid').innerHTML = ''; $('packSkinGrid').innerHTML = '';
+  PACK_ITEMS.filter(it => it.kind === 'boat').forEach(it => packTile(it, $('packBoatGrid')));
+  PACK_ITEMS.filter(it => it.kind === 'skin').forEach(it => packTile(it, $('packSkinGrid')));
+  const list = $('upgList'); list.innerHTML = '';
+  UPGRADES.forEach(u => {
+    const lv = save.upg[u.id], max = lv >= UPG_COST.length, cost = UPG_COST[lv];
+    const row = document.createElement('div'); row.className = 'upg';
+    row.innerHTML = '<div><b>' + u.name + '</b><small>' + u.desc + '</small><div class="pips">' + '●'.repeat(lv) + '<span style="color:#ccd">' + '●'.repeat(UPG_COST.length - lv) + '</span></div></div>';
+    const b = document.createElement('button'); b.className = 'buy';
+    b.textContent = max ? 'MAX' : '● ' + cost; b.disabled = max;
+    b.onclick = () => {
+      if (save.coins < cost) { row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake'); toast('Not enough coins'); Sfx.nope(); return; }
+      save.coins -= cost; save.upg[u.id]++; Sfx.buy(); persist(); openShop();
+    };
+    row.appendChild(b); list.appendChild(row);
+  });
+  show('scrShop');
+}
+
+function refreshSound() { $('mSound').textContent = 'Sound: ' + (Sfx.isMuted() ? 'Off' : 'On'); $('mMusic').textContent = 'Music: ' + (Sfx.isMusicOff() ? 'Off' : 'On'); $('hudSound').textContent = Sfx.isMuted() ? '🔇' : '🔊'; }
+$('mMusic').onclick = () => { Sfx.init(); Sfx.setMusicOff(!Sfx.isMusicOff()); refreshSound(); };
+const toggleSound = () => { Sfx.init(); Sfx.setMuted(!Sfx.isMuted()); refreshSound(); };
+$('mSound').onclick = toggleSound; $('hudSound').onclick = toggleSound;
+refreshSound();
+$('mPlay').onclick = openLevels;
+$('mShop').onclick = openShop;
+$('lBack').onclick = () => show('scrMenu');
+$('sBack').onclick = () => { coinText('menuCoins'); show('scrMenu'); };
+$('rGo').onclick = go;
+$('rBack').onclick = openMenu;
+$('wNext').onclick = () => openReady(levelIdx + 1);
+$('wReplay').onclick = () => openReady(levelIdx);
+$('wMenu').onclick = openMenu;
+$('dRetry').onclick = retry;
+$('dMenu').onclick = openMenu;
+$('hudRetry').onclick = () => { if (mode === 'play' || mode === 'dead' || mode === 'won') { show(null); retry(); } };
+$('hudMenu').onclick = openMenu;
+
+function bindSteer(el, key) {
+  const on = e => { e.preventDefault(); input[key] = true; el.classList.add('on'); if (el.setPointerCapture) try { el.setPointerCapture(e.pointerId); } catch (_) {} };
+  const off = e => { input[key] = false; el.classList.remove('on'); };
+  el.addEventListener('pointerdown', on);
+  ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(ev => el.addEventListener(ev, off));
+  el.addEventListener('contextmenu', e => e.preventDefault());
+}
+bindSteer($('btnL'), 'left');
+bindSteer($('btnR'), 'right');
+$('btnJ').addEventListener('pointerdown', e => { e.preventDefault(); $('btnJ').classList.add('on'); doJump(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(ev => $('btnJ').addEventListener(ev, () => $('btnJ').classList.remove('on')));
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') input.kl = true;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') input.kr = true;
+  if ((e.key === ' ' || e.key === 'Enter') && mode === 'ready') { e.preventDefault(); go(); return; }
+  if ((e.key === ' ' || e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp') && mode === 'play') { e.preventDefault(); if (!e.repeat) doJump(); }
+  if ((e.key === 'r' || e.key === 'R') && (mode === 'play' || mode === 'dead')) { show(null); retry(); }
+});
+addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') input.kl = false;
+  if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') input.kr = false;
+});
+addEventListener('blur', () => { input.left = input.right = input.kl = input.kr = false; });
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
+
+// ---------- Difficulty flags: 50 red = 1 purple, 100 purple = 1 black ----------
+function levelRedFlags(L) {
+  const k = L.diffK == null ? 0.3 : L.diffK;
+  return clamp(Math.round(Math.pow(1.16, (L.n - 1) * Math.sqrt(Math.max(0.05, k)))), 1, 2500); // max 50 purple
+}
+const FLAG_IMG = {};
+function flagImg(color) {
+  if (FLAG_IMG[color]) return FLAG_IMG[color];
+  const c = document.createElement('canvas'); c.width = 7; c.height = 9;
+  const g = c.getContext('2d');
+  g.fillStyle = '#5a4632'; g.fillRect(0, 0, 1, 9);
+  g.fillStyle = color; g.fillRect(1, 0, 5, 4); g.fillRect(1, 1, 6, 2);
+  g.fillStyle = 'rgba(255,255,255,.4)'; g.fillRect(2, 1, 1, 1);
+  return FLAG_IMG[color] = c.toDataURL();
+}
+function flagsHTML(red) {
+  const black = Math.floor(red / 5000), purple = Math.floor((red % 5000) / 50), r = red % 50;
+  // up to 5 flags are drawn; more than that shows one flag and a number
+  const part = (n, color) => !n ? '' : (n <= 5 ? ('<img class="flag" src="' + flagImg(color) + '">').repeat(n) : '<img class="flag" src="' + flagImg(color) + '"><b>×' + n + '</b>');
+  return '<span class="flags">' + part(black, '#111111') + part(purple, '#9b30ff') + part(r, '#ff2d2d') + '</span>';
+}
+
+// ---------- XP, checkpoints and rewards ----------
+function cpCost(k) { return 100 + 10 * k; }               // XP from checkpoint k-1 to k
+function cpTotal(k) { return 100 * k + 5 * k * (k + 1); }  // total XP to reach checkpoint k
+function cpIndex(xp) { let k = 0; while (cpTotal(k + 1) <= xp) k++; return k; }
+function xpForWin(L) { return 20 + 2 * L.n + Math.floor(6 * Math.log2(1 + levelRedFlags(L))); }
+function cpReward(k) {
+  if (k % 2 === 1) return {type: 'revive', count: 2 + Math.floor(k / 8)};
+  const m = k / 2, tier = Math.min(5, Math.floor(m / 3) + (k % 10 === 0 ? 1 : 0));
+  return {type: 'pack', pack: PACKS[tier]};
+}
+function rollRarity(odds) {
+  let r = Math.random() * 100;
+  for (const id in odds) { r -= odds[id]; if (r < 0) return id; }
+  return Object.keys(odds)[0];
+}
+function ownsItem(it) { return it.kind === 'boat' ? save.ownedBoats.includes(it.id) : save.owned.includes(it.id); }
+function openPack(pack) {
+  const rar = rollRarity(pack.odds), pool = PACK_ITEMS.filter(it => it.rarity === rar);
+  const item = pool[Math.floor(Math.random() * pool.length)];
+  let dupe = 0;
+  if (ownsItem(item)) { dupe = RAR[rar].dupe; save.coins += dupe; }
+  else (item.kind === 'boat' ? save.ownedBoats : save.owned).push(item.id);
+  const bonus = 10 * (PACKS.indexOf(pack) + 1);
+  save.coins += bonus; persist();
+  return {item, rar, dupe, bonus};
+}
+
+// ---------- Pixel-art Slide Pass ----------
+const PASS_SEG = 48;
+function passTrackY(x) { return Math.round(38 + 9 * Math.sin(x / 17)); }
+function pixelHeart(g, x, y) {
+  g.fillStyle = '#ff2d55';
+  [[1,0],[2,0],[4,0],[5,0],[0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[6,1],[0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[6,2],[1,3],[2,3],[3,3],[4,3],[5,3],[2,4],[3,4],[4,4],[3,5]].forEach(([a, b]) => g.fillRect(x + a, y + b, 1, 1));
+  g.fillStyle = '#fff'; g.fillRect(x + 1, y + 1, 1, 1);
+}
+function pixelPack(g, x, y, color) {
+  g.fillStyle = '#222'; g.fillRect(x - 1, y - 1, 9, 9);
+  g.fillStyle = color; g.fillRect(x, y, 7, 7);
+  g.fillStyle = 'rgba(255,255,255,.55)'; g.fillRect(x + 3, y, 1, 7); g.fillRect(x, y + 3, 7, 1);
+  g.fillStyle = '#ffd23f'; g.fillRect(x + 2, y - 2, 3, 2);
+}
+function drawPass(cv, xpShown) {
+  const g = cv.getContext('2d'), W = cv.width, H = cv.height, t = performance.now() / 1000;
+  g.imageSmoothingEnabled = false;
+  const k = cpIndex(xpShown), frac = (xpShown - cpTotal(k)) / cpCost(k + 1);
+  const pos = (k + frac) * PASS_SEG, view = Math.max(0, pos - 60);
+  g.fillStyle = '#9fe0ff'; g.fillRect(0, 0, W, H);
+  g.fillStyle = '#ffffff';
+  for (let c = 0; c < 6; c++) { const cx = ((c * 53 - view * 0.3) % (W + 40) + W + 40) % (W + 40) - 20; g.fillRect(cx, 6 + (c % 3) * 5, 14, 3); g.fillRect(cx + 3, 4 + (c % 3) * 5, 7, 2); }
+  g.fillStyle = '#6ccf5f'; g.fillRect(0, H - 10, W, 10);
+  g.fillStyle = '#4fb043'; for (let x = 0; x < W; x += 4) g.fillRect(x, H - 10 + ((x + Math.floor(view)) % 8 ? 0 : 1), 2, 1);
+  // the slide with water in it
+  for (let x = 0; x < W; x++) {
+    const wx = x + view, y = passTrackY(wx);
+    g.fillStyle = '#ffffff'; g.fillRect(x, y - 6, 1, 1); g.fillRect(x, y + 6, 1, 1);
+    g.fillStyle = Math.floor(wx / 6) % 2 ? '#ff5a8a' : '#ffd23f'; g.fillRect(x, y - 5, 1, 11);
+    g.fillStyle = '#2fa8ff'; g.fillRect(x, y - 3, 1, 7);
+    if ((Math.floor(wx * 7 + t * 30) % 23) === 0) { g.fillStyle = '#d8f4ff'; g.fillRect(x, y - 2 + (Math.floor(wx) % 5), 1, 1); }
+    if (Math.floor(wx) % 24 === 0) { g.fillStyle = '#e8e8e8'; g.fillRect(x, y + 7, 1, H - 10 - y - 7); }
+  }
+  // checkpoints with their rewards
+  for (let c = Math.max(1, Math.floor(view / PASS_SEG)); c * PASS_SEG - view < W + 10; c++) {
+    const x = Math.round(c * PASS_SEG - view), y = passTrackY(c * PASS_SEG), rw = cpReward(c), claimed = c <= save.cpClaimed;
+    g.fillStyle = '#5a4632'; g.fillRect(x, y - 20, 1, 14);
+    g.fillStyle = claimed ? '#36c46a' : '#ff2d2d'; g.fillRect(x + 1, y - 20, 5, 3);
+    if (rw.type === 'revive') pixelHeart(g, x - 3, y - 29); else pixelPack(g, x - 3, y - 29, rw.pack.color);
+    if (claimed) { g.fillStyle = 'rgba(255,255,255,.65)'; g.fillRect(x - 4, y - 30, 9, 9); g.fillStyle = '#23904b'; g.fillRect(x - 2, y - 26, 1, 2); g.fillRect(x - 1, y - 25, 1, 2); g.fillRect(x, y - 27, 1, 3); g.fillRect(x + 1, y - 29, 1, 3); }
+  }
+  // your boat
+  const bx = Math.round(pos - view), by = passTrackY(pos) - 3 + Math.round(Math.sin(t * 6));
+  g.fillStyle = '#222'; g.fillRect(bx - 4, by + 1, 9, 3);
+  g.fillStyle = '#ff8c1a'; g.fillRect(bx - 3, by + 1, 7, 2);
+  g.fillStyle = '#ffd23f'; g.fillRect(bx - 1, by - 2, 3, 3);
+  g.fillStyle = '#ffe3c9'; g.fillRect(bx - 1, by - 5, 3, 3);
+  g.fillStyle = '#222'; g.fillRect(bx, by - 4, 1, 1);
+}
+function xpLine(xp) {
+  const k = cpIndex(xp), into = Math.floor(xp - cpTotal(k)), need = cpCost(k + 1), rw = cpReward(k + 1);
+  return 'XP ' + into + ' / ' + need + ' to checkpoint ' + (k + 1) + ' (' + (rw.type === 'revive' ? rw.count + ' Revives' : rw.pack.name) + ')';
+}
+
+// Pack reveal popup
+let packOnClose = null, packItem = null;
+function packIconURL(it, color) {
+  const c = document.createElement('canvas'); c.width = 24; c.height = 24; const g = c.getContext('2d');
+  g.fillStyle = it ? color : '#ffe0e8'; g.fillRect(0, 0, 24, 24);
+  g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(2, 2, 20, 3);
+  if (!it) { pixelHeart(g, 8, 8); pixelHeart(g, 4, 13); pixelHeart(g, 13, 13); return c.toDataURL(); }
+  const hex = v => '#' + v.toString(16).padStart(6, '0');
+  if (it.kind === 'boat') { const [a, b] = it.pal; g.fillStyle = '#222'; g.fillRect(3, 13, 18, 6); g.fillStyle = hex(a); g.fillRect(4, 13, 16, 4); g.fillStyle = hex(b); g.fillRect(4, 16, 16, 1); g.fillStyle = '#ffe3c9'; g.fillRect(10, 6, 5, 5); g.fillStyle = '#ffd23f'; g.fillRect(10, 11, 5, 3); }
+  else { g.fillStyle = '#ffe3c9'; g.fillRect(8, 3, 9, 8); g.fillStyle = '#222'; g.fillRect(10, 6, 1, 1); g.fillRect(14, 6, 1, 1); g.fillStyle = it.color; g.fillRect(7, 11, 11, 9); g.fillRect(4, 12, 3, 4); g.fillRect(18, 12, 3, 4); }
+  return c.toDataURL();
+}
+function showPackPop(opts) {
+  const r = opts.rarity ? RAR[opts.rarity] : null;
+  const banner = $('packBanner');
+  banner.textContent = opts.banner; banner.className = r && r.id === 'secret' ? 'secretglow' : '';
+  banner.style.background = r && r.id === 'secret' ? '' : (opts.color || (r ? r.color : '#ff2d55'));
+  $('packIcon').innerHTML = '<img src="' + packIconURL(opts.item, opts.color || (r ? r.color : '#ff2d55')) + '" style="width:96px;height:96px;image-rendering:pixelated;border-radius:14px">';
+  $('packTitle').textContent = opts.title; $('packText').innerHTML = opts.text;
+  packItem = opts.item && !opts.dupe ? opts.item : null;
+  $('packEquip').style.display = packItem ? 'block' : 'none';
+  packOnClose = opts.onClose || null;
+  $('packPop').classList.add('show');
+  if (r && r.rank >= 5) { Sfx.buy(); setTimeout(() => Sfx.coin(), 250); setTimeout(() => Sfx.buy(), 500); } else Sfx.buy();
+}
+function closePackPop() { $('packPop').classList.remove('show'); const f = packOnClose; packOnClose = null; if (f) f(); }
+$('packOk').onclick = closePackPop;
+$('packEquip').onclick = () => {
+  if (packItem) { if (packItem.kind === 'boat') { save.boat = packItem.id; applyBoat(); } else { save.skin = packItem.id; applySkin(); } persist(); toast('Equipped ' + packItem.name); }
+  closePackPop();
+};
+function claimCheckpoint(k, done) {
+  save.cpClaimed = k;
+  const rw = cpReward(k);
+  if (rw.type === 'revive') {
+    save.revives += rw.count; persist();
+    showPackPop({banner: 'CHECKPOINT ' + k, color: '#ff2d55', title: 'Revive Pack!', text: '+' + rw.count + ' Revives. You have ' + save.revives + ' now.', onClose: done});
+  } else {
+    const res = openPack(rw.pack), it = res.item, r = RAR[res.rar];
+    showPackPop({banner: rw.pack.name.toUpperCase() + ' · ' + r.name.toUpperCase(), rarity: res.rar, item: it, dupe: res.dupe,
+      title: it.name + (it.kind === 'boat' ? ' (boat)' : ' (baby)'),
+      text: '<b>' + it.perk + '</b>' + (res.dupe ? '<br>You already have it: +' + res.dupe + ' coins instead.' : '') + '<br>+' + res.bonus + ' bonus coins',
+      onClose: done});
+  }
+}
+// XP bar animation on the win screen; stops at each checkpoint to open its pack
+let passAnim = null;
+function startPassAnim(from, to) { passAnim = {x: from, to, paused: false}; }
+function tickPass(dt) {
+  if ($('scrPass').classList.contains('show')) { drawPass($('passCanvas2'), save.xp); }
+  if (!passAnim || !$('scrWin').classList.contains('show')) return;
+  if (!passAnim.paused) {
+    passAnim.x = Math.min(passAnim.to, passAnim.x + dt * Math.max(60, (passAnim.to - passAnim.x) * 1.8));
+    const next = cpTotal(save.cpClaimed + 1);
+    if (passAnim.x >= next && next <= passAnim.to) {
+      passAnim.x = next; passAnim.paused = true;
+      claimCheckpoint(save.cpClaimed + 1, () => { passAnim.paused = false; coinText('winCoinsTotal'); });
+    }
+  }
+  drawPass($('passCanvas'), passAnim.x);
+  $('xpText').textContent = xpLine(passAnim.x);
+}
+function openPass() {
+  showControls(false);
+  $('xpText2').textContent = xpLine(save.xp);
+  const k = cpIndex(save.xp); let html = '';
+  for (let c = save.cpClaimed + 1; c <= Math.max(k, save.cpClaimed) + 6; c++) {
+    const rw = cpReward(c), ready = c <= k;
+    html += '<div class="passrow" style="border-color:' + (rw.type === 'revive' ? '#ff2d55' : rw.pack.color) + '"><span>Checkpoint ' + c + '</span><span>' + (rw.type === 'revive' ? '❤ ' + rw.count + ' Revives' : '📦 ' + rw.pack.name) + (ready ? ' <b style="color:#36c46a">ready!</b>' : '') + '</span></div>';
+  }
+  $('passList').innerHTML = html;
+  $('packOdds').innerHTML = PACKS.map(pk => '<b style="color:' + pk.color + '">' + pk.name + ':</b> ' + Object.entries(pk.odds).map(([r, v]) => RAR[r].name + ' ' + v + '%').join(', ')).join('<br>');
+  show('scrPass');
+  // claim anything you already earned
+  const claimNext = () => { if (cpTotal(save.cpClaimed + 1) <= save.xp) claimCheckpoint(save.cpClaimed + 1, () => { openPass(); }); };
+  claimNext();
+}
+$('mPass').onclick = openPass;
+$('pBack').onclick = () => { coinText('menuCoins'); show('scrMenu'); };
+
+// ---------- Revive: put you back on the slide just before you fell ----------
+let lastSafe = null, safeTick = 0;
+function trackSafeSpot() {
+  if (p.air || p.inLoop || p.grip > 0) return;
+  const run = level.runs[p.run];
+  if (Math.abs(p.u) < run.w * 0.3 && (safeTick++ % 20 === 0)) lastSafe = {run: p.run, s: p.s};
+}
+function revive() {
+  if (save.revives <= 0 || mode !== 'dead') return;
+  save.revives--; persist();
+  const sf = lastSafe || {run: 0, s: 0.5};
+  P = params();
+  p = startState(level); p.run = sf.run; p.lastRun = sf.run; p.s = Math.max(0.5, sf.s - 6); p.speed = p.vref = 12;
+  runPos(level.runs[p.run], p.s, 0, p);
+  hopFrom = null; jumpQueued = false;
+  player.visible = true; player.scale.setScalar(PLAYER_SCALE);
+  show(null); showControls(true); mode = 'play'; acc = 0;
+  Sfx.boing(); toast('Revived! ' + save.revives + ' left');
+}
+$('dRevive').onclick = revive;
+function refreshDeath() {
+  const b = $('dRevive'); b.textContent = 'Revive (' + save.revives + ' left)';
+  b.disabled = save.revives <= 0; b.style.opacity = save.revives > 0 ? 1 : 0.45;
+}
+
+// ---------- Main loop ----------
+let acc = 0, last = performance.now();
+function frame(t) {
+  requestAnimationFrame(frame);
+  const dt = Math.min((t - last) / 1000, 0.1); last = t;
+  if (mode === 'play') {
+    acc += dt;
+    while (acc >= DT) { acc -= DT; physTick(); if (mode !== 'play') break; }
+  }
+  updateVisuals(dt);
+  tickPass(dt);
+  renderer.render(scene, cam);
+}
+openMenu();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

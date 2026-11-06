@@ -1,0 +1,4 @@
+#!/bin/sh
+# Blocks commits that add external scripts/stylesheets without SRI hashes.
+# Enable once per clone:  git config core.hooksPath .githooks
+exec python3 "$(git rev-parse --show-toplevel)/scripts/check_sri.py"
