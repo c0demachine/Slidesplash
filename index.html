@@ -48,8 +48,9 @@
   .loadbar{height:16px;border-radius:999px;background:#e3e8f0;overflow:hidden;margin-top:6px}
   #loadFill{height:100%;width:0;background:linear-gradient(90deg,#3fa9ff,#ff5a8a);transition:width .2s}
   .pixel{image-rendering:pixelated;image-rendering:crisp-edges;width:100%;border-radius:12px;display:block;background:#9fe0ff}
-  .flag{image-rendering:pixelated;width:14px;height:18px;vertical-align:middle;margin:0 1px}
-  .flags b{font-size:14px;margin:0 6px 0 1px;vertical-align:middle}
+  .flag{image-rendering:pixelated;width:18px;height:18px;vertical-align:middle;margin:0 1px}
+  .flags b{font-size:14px;margin:0 4px 0 1px;vertical-align:middle}
+  .flags small{font-weight:700;color:#556;vertical-align:middle}
   .rar{display:inline-block;font-size:11px;font-weight:900;color:#fff;padding:2px 7px;border-radius:999px;margin-top:4px}
   .passrow{display:flex;justify-content:space-between;align-items:center;border:2px solid #e3e8f0;border-radius:12px;padding:7px 10px;margin:5px 0;font-weight:800;font-size:14px}
   #packPop{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,20,50,.6);padding:16px;z-index:20}
@@ -447,11 +448,184 @@ function inPool(pool, x, z, m) {
 }
 
 // ---------- Infinite level generator ----------
+// How a level is made:
+//  1. Every RANK_LEVELS levels the difficulty goes up one rank (one more flag on the difficulty badge).
+//  2. outline() gives each rank its limits: how tall the tower is, how many slides, how wide they are,
+//     how small the pool is, and how often the hard pieces show up. Each limit creeps toward a
+//     "hardest that is still fair" value, so every rank is a bit harder than the last, forever,
+//     without ever becoming impossible.
+//  3. TEMPLATES is a library of slide pieces. Each one has rules: the rank it unlocks at, how much
+//     height it needs, and what it can't come right after. The generator keeps picking pieces that
+//     fit the outline and stitches them together, top to bottom.
+//  4. Every piece must also pass a clearance check: it can't run through (or just above or below)
+//     any slide already built. A piece that fails is taken back out and another one is tried.
+//  5. getLevel() then has practice bots play it to make sure it can be beaten.
 const NAME_A = ['Splash', 'Twisty', 'Mega', 'Turbo', 'Wobbly', 'Rainbow', 'Sky', 'Noodle', 'Spiral', 'Zoomy', 'Giga', 'Bubbly', 'Loopy', 'Wild', 'Crazy', 'Sunny', 'Dizzy', 'Swirly'];
 const NAME_B = ['Drop', 'Twirl', 'Tower', 'Coaster', 'Corkscrew', 'Plunge', 'Swirl', 'Spin', 'Rush', 'Tornado', 'Dive', 'Wiggle', 'Cannon', 'Chute', 'Glide', 'Whirl'];
 function levelName(n) { const r = mulberry32(n * 31 + 7); return NAME_A[Math.floor(r() * NAME_A.length)] + ' ' + NAME_B[Math.floor(r() * NAME_B.length)]; }
-function levelHeight(n) { return 70 + Math.min(n, 40) * 9 + Math.max(0, n - 40) * 2; }
+const RANK_LEVELS = 3, DEG = Math.PI / 180;
+function levelRank(n) { return Math.floor((n - 1) / RANK_LEVELS); }
+// 0 at x <= 0, then rises toward 1 and never quite reaches it; `speed` = how many steps to get ~63% of the way
+function ramp(x, speed) { return x <= 0 ? 0 : 1 - Math.exp(-x / speed); }
+// grows fast for 40 levels, then slowly toward ~730 so a ride never gets too long for the bots to test
+function levelHeight(n) { return 70 + Math.min(n, 40) * 9 + 300 * ramp(n - 40, 150); }
 function levelReward(n) { return 10 + n * 4; }
+
+// The limits for level n. k is the skill knob from getLevel(): 1 = normal, lower = easier version, higher = harder.
+function outline(n, k) {
+  const rank = levelRank(n), easy = Math.max(0, 1 - k); // easy: 0 = normal, up to ~0.9 = much easier
+  const base = Math.min(1, (n - 1) / 25) + 0.3 * ramp(n - 26, 150); // how twisty: same as before for 25 levels, then keeps creeping up
+  const d = Math.min(1.4 + 0.2 * ramp(rank, 60), base * k + (k > 1 ? (k - 1) * 0.5 : 0));
+  return {
+    n, rank, k, d, easy,
+    hard: ramp(rank - 3, 30),                       // 0..1: how much the mix leans toward the hard pieces
+    H: levelHeight(n) * (1 - 0.45 * easy),
+    w: Math.max(3.1, 7 - 3.4 * d) + easy * 3,      // slide width
+    bend: 1 - 0.45 * easy,                         // easier = gentler bends
+    runsMin: n === 1 ? 1 : 1 + Math.floor(2 * ramp(rank - 12, 25)),
+    runsMax: n === 1 ? 1 : 4 + Math.floor(2 * ramp(rank - 15, 30)),
+    fallMax: 8 + 4 * ramp(rank - 10, 30),          // drop between one slide and the next
+    jumpEvery: rank < 20 ? 6 : 4,                  // every Nth level the pool is too far and you must jump
+    poolSize: Math.max(2.8 - 0.6 * ramp(rank - 20, 60), 9 - 5.5 * d),
+    poolDrift: 2 + 7 * d,                          // how far off to the side the pool can be
+    runDrift: 1 + 5 * d                            // how far off to the side the next slide can start
+  };
+}
+
+// The pieces. rank = first rank it can appear at; hard = 0 (easy) .. 1 (very hard), higher ranks pick hard
+// pieces more often; weight = how common it is; noEasy = never in easier versions; notAfter = can't follow these.
+// make(o, rem, dir) returns a function that lays the piece down, or null if it doesn't fit in `rem` height.
+const LOOPS = ['loop', 'loopTurn', 'doubleLoop', 'corkLoop'];
+const TEMPLATES = [
+  {id: 'straight', rank: 0, hard: 0, weight: 0.4, make(o, rem) {
+    const slope = o.r(0.25, 0.45), len = Math.min(o.r(10, 22), rem / slope);
+    return len < 6 ? null : run => addCurve(run, len, 0, slope);
+  }},
+  {id: 'turn', rank: 0, hard: 0.15, weight: 0.9, make(o, rem, dir) { // sharp turn
+    const slope = o.r(0.15, 0.3), full = o.r(16, 36) * (1 + o.easy), f = Math.min(1, rem / (slope * full));
+    const dyaw = dir * o.r(70, 180) * o.bend * DEG * f;
+    return full * f < 6 ? null : run => addCurve(run, full * f, dyaw, slope);
+  }},
+  {id: 'twirl', rank: 0, hard: 0.3, weight: 1, make(o, rem, dir) { // spiral down
+    const radius = o.r(8, 13) * (1 + o.easy), turns = o.r(1, 1.5 + 2.5 * o.d), slope = o.r(0.11, 0.17);
+    const full = turns * 2 * Math.PI * radius, f = Math.min(1, rem / (slope * full));
+    return full * f < 6 ? null : run => addCurve(run, full * f, dir * turns * 2 * Math.PI * f, slope);
+  }},
+  {id: 'snake', rank: 0, hard: 0.3, weight: 1, make(o, rem, dir) { // weaves left-right; you can jump across
+    const waves = 3 + Math.floor(o.rng() * (2 + 3 * o.d)), segLen = o.r(14, 22) * (1 + o.easy);
+    const amp = dir * o.r(60, 95) * o.bend * DEG, slope = o.r(0.16, 0.28);
+    return (waves + 1) * segLen * slope > rem ? null : run => addWiggle(run, waves, segLen, amp, slope);
+  }},
+  {id: 'sbend', rank: 1, hard: 0.3, weight: 0.8, make(o, rem, dir) { // turn one way, then the other
+    const slope = o.r(0.15, 0.3), l1 = o.r(16, 36) * (1 + o.easy), l2 = o.r(16, 36) * (1 + o.easy);
+    const a = dir * o.r(70, 180) * o.bend * DEG, b = -a * o.r(0.7, 1.2);
+    return slope * (l1 + l2) > rem ? null : run => { addCurve(run, l1, a, slope); addCurve(run, l2, b, slope); };
+  }},
+  {id: 'zigzag', rank: 1, hard: 0.5, weight: 1, noEasy: true, notAfter: ['zigzag', 'gauntlet'], make(o, rem, dir) { // hairpins you can jump down
+    let legs = 2 + Math.floor(o.rng() * (1.5 + 3 * o.d));
+    const legLen = o.r(20, 34), slope = o.r(0.18, 0.28);
+    while (legs >= 2 && switchbackDrop(o.w, legs, legLen, slope) > rem) legs--;
+    return legs < 2 ? null : run => addSwitchback(run, legs, legLen, slope, dir);
+  }},
+  {id: 'loop', rank: 1, hard: 0.5, weight: 0.35, notAfter: LOOPS, make(o, rem, dir) {
+    const R = o.r(5, 7);
+    return run => addLoop(run, R, (o.w + 1) * dir);
+  }},
+  {id: 'hairpin', rank: 3, hard: 0.55, weight: 0.7, make(o, rem, dir) { // one tight U-turn
+    const R = o.r(6, 9) * (1 + o.easy), slope = o.r(0.15, 0.22), lead = o.r(8, 14), len = Math.PI * R;
+    return slope * (len + 2 * lead) > rem ? null : run => { addCurve(run, lead, 0, slope); addCurve(run, len, dir * Math.PI, slope); addCurve(run, lead, 0, slope); };
+  }},
+  {id: 'plunge', rank: 4, hard: 0.5, weight: 0.6, make(o, rem, dir) { // steep drop straight into a sharp turn
+    const s1 = o.r(0.45, 0.6), l1 = o.r(12, 20), s2 = o.r(0.15, 0.22), l2 = o.r(18, 28) * (1 + o.easy);
+    const a = dir * o.r(90, 150) * o.bend * DEG;
+    return s1 * l1 + s2 * l2 > rem ? null : run => { addCurve(run, l1, 0, s1); addCurve(run, l2, a, s2); };
+  }},
+  {id: 'chicane', rank: 5, hard: 0.7, weight: 0.7, make(o, rem, dir) { // quick left-right-left
+    const waves = 3 + Math.floor(o.rng() * (1 + 2 * o.hard)), segLen = o.r(9, 13) * (1 + o.easy);
+    const amp = dir * o.r(55, 85) * o.bend * DEG, slope = o.r(0.16, 0.24);
+    return (waves + 1) * segLen * slope > rem ? null : run => addWiggle(run, waves, segLen, amp, slope);
+  }},
+  {id: 'helix', rank: 6, hard: 0.7, weight: 0.6, make(o, rem, dir) { // tight corkscrew
+    const R = o.r(6, 8) * (1 + o.easy), slope = Math.max(o.r(0.14, 0.2), 5.5 / (2 * Math.PI * R)); // each turn drops 5.5+ so the slide never touches itself
+    const turns = o.r(2, 3 + 2 * o.hard), full = turns * 2 * Math.PI * R, f = Math.min(1, rem / (slope * full));
+    return full * f < 6 ? null : run => addCurve(run, full * f, dir * turns * 2 * Math.PI * f, slope);
+  }},
+  {id: 'loopTurn', rank: 7, hard: 0.75, weight: 0.4, notAfter: LOOPS, make(o, rem, dir) { // loop, then turn away from it
+    const R = o.r(5, 7), slope = o.r(0.15, 0.25), len = o.r(16, 26) * (1 + o.easy), a = dir * o.r(90, 160) * o.bend * DEG;
+    return slope * len > rem ? null : run => { addLoop(run, R, (o.w + 1) * dir); addCurve(run, len, a, slope); };
+  }},
+  {id: 'doubleLoop', rank: 8, hard: 0.8, weight: 0.35, notAfter: LOOPS, make(o, rem, dir) {
+    const R = o.r(5, 6.5), slope = o.r(0.15, 0.25), gap = 2 * R + o.r(5, 9); // far enough apart that the loops don't touch
+    return slope * gap > rem ? null : run => { addLoop(run, R, (o.w + 1) * dir); addCurve(run, gap, 0, slope); addLoop(run, R, (o.w + 1) * dir); };
+  }},
+  {id: 'spiralFlip', rank: 10, hard: 0.85, weight: 0.45, make(o, rem, dir) { // spiral one way, then the other
+    const R = o.r(8, 11) * (1 + o.easy), slope = o.r(0.12, 0.17), t1 = o.r(1, 1.75), t2 = o.r(1, 1.75);
+    const l1 = t1 * 2 * Math.PI * R, l2 = t2 * 2 * Math.PI * R;
+    return slope * (l1 + l2) > rem ? null : run => { addCurve(run, l1, dir * t1 * 2 * Math.PI, slope); addCurve(run, l2, -dir * t2 * 2 * Math.PI, slope); };
+  }},
+  {id: 'gauntlet', rank: 12, hard: 0.9, weight: 0.4, noEasy: true, notAfter: ['zigzag', 'gauntlet'], make(o, rem, dir) { // zig-zag with short legs: hairpins come fast
+    let legs = 3 + Math.floor(o.rng() * (2 + 2 * o.hard));
+    const legLen = o.r(12, 18), slope = o.r(0.18, 0.26);
+    while (legs >= 2 && switchbackDrop(o.w, legs, legLen, slope) > rem) legs--;
+    return legs < 2 ? null : run => addSwitchback(run, legs, legLen, slope, dir);
+  }},
+  {id: 'corkLoop', rank: 14, hard: 0.95, weight: 0.35, notAfter: LOOPS, make(o, rem, dir) { // corkscrew straight into a loop
+    const R = o.r(6, 8), slope = Math.max(o.r(0.14, 0.2), 5.5 / (2 * Math.PI * R)), turns = o.r(1.25, 2), len = turns * 2 * Math.PI * R;
+    const lr = o.r(5, 6.5), lead = R + lr + o.w + o.r(2, 4); // long enough that the loop doesn't rise into the corkscrew
+    return slope * (len + lead) > rem ? null : run => { addCurve(run, len, dir * turns * 2 * Math.PI, slope); addCurve(run, lead, 0, slope); addLoop(run, lr, (o.w + 1) * -dir); };
+  }}
+];
+// Pick a piece the rules allow, weighted so that higher ranks lean toward the harder pieces.
+function pickTemplate(o, prev, skip) {
+  let total = 0;
+  const ok = [];
+  for (const t of TEMPLATES) {
+    if (o.rank < t.rank || skip.includes(t.id) || (t.noEasy && o.easy > 0.3) || (t.notAfter && t.notAfter.includes(prev))) continue;
+    const fadeIn = Math.min(1, (o.rank - t.rank + 1) / 3);                      // new pieces ease in over 3 ranks
+    const mix = (1 - o.hard) * (1 - t.hard) + o.hard * t.hard + 0.15;
+    const wt = t.weight * fadeIn * mix;
+    ok.push(t, wt); total += wt;
+  }
+  let x = o.rng() * total;
+  for (let i = 0; i < ok.length; i += 2) { x -= ok[i + 1]; if (x <= 0) return ok[i]; }
+  return ok.length ? ok[ok.length - 2] : null;
+}
+
+// Clearance rule: a slide must not pass through, or just above or below, a slide already built.
+const CLEAR_Y = 4.5, CLEAR_CELL = 11;
+// Checks samples from..end of run j against everything built so far (and against each other), adding them
+// to the clearance map. If anything is too close they are taken back out and it returns false.
+function clearOK(C, L, j, from) {
+  const S = L.runs[j].samples, added = [];
+  let ok = true;
+  for (let i = from; i < S.length && ok; i++) {
+    const a = S[i], cx = Math.floor(a.x / CLEAR_CELL), cz = Math.floor(a.z / CLEAR_CELL);
+    for (let dx = -1; dx <= 1 && ok; dx++) for (let dz = -1; dz <= 1 && ok; dz++) {
+      const list = C.grid.get((cx + dx) + ',' + (cz + dz));
+      if (list) for (let q = 0; q < list.length; q += 2) {
+        const jb = list[q], ib = list[q + 1], b = L.runs[jb].samples[ib];
+        if (Math.abs(a.y - b.y) >= CLEAR_Y) continue;
+        if (jb === j && i - ib < (a.loop || b.loop ? 140 : 40)) continue;              // the slide right behind you (or the loop you're in)
+        if (jb === j - 1 && i < 60 && ib >= L.runs[jb].samples.length - 40) continue;  // the launch you just flew off
+        if (Math.hypot(a.x - b.x, a.z - b.z) < C.lim) { ok = false; break; }
+      }
+    }
+    const key = cx + ',' + cz;
+    let list = C.grid.get(key); if (!list) C.grid.set(key, list = []);
+    list.push(j, i); added.push(list);
+  }
+  if (!ok) for (const list of added) list.length -= 2;
+  return ok;
+}
+// Lay a piece down; take it back out if it breaks the clearance rule. force = keep it anyway (but mark the level).
+function place(C, L, j, build, force) {
+  const run = L.runs[j], from = run.samples.length, t0 = Object.assign({}, run.t);
+  build(run);
+  if (clearOK(C, L, j, from)) return true;
+  if (force) { L.clash = true; return true; }
+  run.samples.length = from; run.t = t0;
+  return false;
+}
 
 function finishLevel(L) {
   // look ahead: start slowing down before tight turns so they can be steered
@@ -471,62 +645,45 @@ function generate(n, variant, k) {
   if (k === true) k = 0.4; else if (!k) k = 1;
   const rng = mulberry32(n * 7919 + variant * 104729 + 13);
   const r = (a, b) => a + (b - a) * rng();
-  const d = Math.min(1.4, Math.min(1, (n - 1) / 25) * k + (k > 1 ? (k - 1) * 0.5 : 0));
-  const easy = Math.max(0, 1 - k);                // 0 = normal, up to ~0.9 = much easier
-  const H = levelHeight(n) * (1 - 0.45 * easy), w = Math.max(3.1, 7 - 3.4 * d) + easy * 3;
-  const bend = 1 - 0.45 * easy;                    // easier = gentler bends
-  const runsN = n === 1 ? 1 : 1 + Math.min(3, Math.floor(rng() * (1 + d * 3.5)));
-  const jumpLevel = n % 6 === 0;
+  const o = outline(n, k); o.rng = rng; o.r = r;
+  const {H, w} = o;
+  const runsN = clamp(1 + Math.floor(rng() * (1 + o.d * 3.5)), o.runsMin, o.runsMax);
+  const jumpLevel = n % o.jumpEvery === 0;
   const endY = r(8, 13);
-  const falls = []; for (let k = 0; k < runsN - 1; k++) falls.push(r(5, 8));
-  const L = {n, name: levelName(n), H, reward: levelReward(n), jumpLevel, runs: []};
+  const falls = []; for (let j = 0; j < runsN - 1; j++) falls.push(r(5, o.fallMax));
+  const L = {n, name: levelName(n), H, rank: o.rank, reward: levelReward(n), jumpLevel, runs: [], pieces: [], clash: false};
+  const C = {grid: new Map(), lim: w + 0.5};
   let start = {x: 0, y: H, z: 0, yaw: 0};
-  for (let k = 0; k < runsN; k++) {
+  for (let j = 0; j < runsN; j++) {
     const run = makeRun(start.x, start.y, start.z, start.yaw, w);
-    const fallsLeft = falls.slice(k).reduce((a, b) => a + b, 0);
-    const budget = (start.y - endY - fallsLeft) / (runsN - k);
+    L.runs.push(run);
+    const fallsLeft = falls.slice(j).reduce((a, b) => a + b, 0);
+    const budget = (start.y - endY - fallsLeft) / (runsN - j);
     const endTarget = start.y - budget;
-    if (k === 0) addCurve(run, Math.min(budget * 0.25, H * 0.14) / 0.7, 0, 0.7); // steep plunge off the top, then it twists the rest of the way down
-    else addCurve(run, 10, 0, 0.25);
-    let prevKind = 'straight';
-    for (let guard = 0; guard < 60; guard++) {
+    if (j === 0) place(C, L, j, rn => addCurve(rn, Math.min(budget * 0.25, H * 0.14) / 0.7, 0, 0.7), true); // steep plunge off the top, then it twists the rest of the way down
+    else place(C, L, j, rn => addCurve(rn, 10, 0, 0.25), true);
+    let prev = 'straight';
+    for (let guard = 0; guard < 80; guard++) {
       const rem = run.t.y - endTarget - 4;
       if (rem < 4) break;
-      const roll = rng(), dir = rng() < 0.5 ? 1 : -1;
-      let len, dyaw = 0, slope;
-      if (n >= 2 && roll < 0.08 && prevKind !== 'loop') {
-        addLoop(run, r(5, 7), (w + 1) * (rng() < 0.5 ? 1 : -1)); prevKind = 'loop'; continue;
+      const skip = [];
+      let placed = false;
+      for (let tries = 0; tries < 8 && !placed; tries++) {
+        const t = pickTemplate(o, prev, skip);
+        if (!t) break;
+        skip.push(t.id);
+        const build = t.make(o, rem, rng() < 0.5 ? 1 : -1);
+        if (build && place(C, L, j, build)) { placed = true; prev = t.id; L.pieces.push(t.id); }
       }
-      if (n >= 2 && roll < 0.3 && prevKind !== 'switch') { // zig-zag you can jump down
-        let legs = 2 + Math.floor(rng() * (1.5 + 3 * d));
-        const legLen = r(20, 34), sl = r(0.18, 0.28);
-        if (easy > 0.3) { prevKind = 'switch'; continue; } // no hairpins in easy versions
-        while (legs >= 2 && switchbackDrop(w, legs, legLen, sl) > rem) legs--;
-        if (legs >= 2) { addSwitchback(run, legs, legLen, sl, dir); prevKind = 'switch'; continue; }
-      }
-      if (roll < 0.5) { // snake you can jump across
-        const waves = 3 + Math.floor(rng() * (2 + 3 * d)), segLen = r(14, 22) * (1 + easy), amp = dir * r(60, 95) * bend * Math.PI / 180, sl = r(0.16, 0.28);
-        if ((waves + 1) * segLen * sl <= rem) { addWiggle(run, waves, segLen, amp, sl); prevKind = 'wiggle'; continue; }
-      }
-      if (roll < 0.68) { // tight twirl
-        const radius = r(8, 13) * (1 + easy), turns = r(1, 1.5 + 2.5 * d);
-        slope = r(0.11, 0.17); len = turns * 2 * Math.PI * radius; dyaw = dir * turns * 2 * Math.PI; prevKind = 'spiral';
-      } else if (roll < 0.93) { // sharp turn, often an S-bend
-        len = r(16, 36) * (1 + easy); dyaw = dir * r(70, 180) * bend * Math.PI / 180; slope = r(0.15, 0.3); prevKind = 'turn';
-        if (rng() < 0.5 && slope * len * 2 < rem) { addCurve(run, len, dyaw, slope); dyaw = -dyaw * r(0.7, 1.2); len = r(16, 36); }
-      } else { len = r(10, 22); slope = r(0.25, 0.45); prevKind = 'straight'; }
-      if (slope * len > rem) { const k2 = rem / (slope * len); len *= k2; dyaw *= k2; }
-      if (len < 6) break;
-      addCurve(run, len, dyaw, slope);
+      if (!placed) break;
     }
     // straight run-out to the exact end height, then the launch ramp
     const left = Math.max(0.5, run.t.y - endTarget), outLen = Math.max(14, left / 0.4);
-    addCurve(run, outLen, 0, left / outLen);
-    run.kick = k < runsN - 1 ? r(4, 6) : (jumpLevel ? 0 : r(3, 8));
-    L.runs.push(run);
-    if (k < runsN - 1) {
-      const target = run.t.y - falls[k], hit = simulateTo(L, target);
-      const yaw = Math.atan2(hit.hx, hit.hz), dx = (rng() * 2 - 1) * (1 + 5 * d), back = 5;
+    place(C, L, j, rn => addCurve(rn, outLen, 0, left / outLen), true);
+    run.kick = j < runsN - 1 ? r(4, 6) : (jumpLevel ? 0 : r(3, 8));
+    if (j < runsN - 1) {
+      const target = run.t.y - falls[j], hit = simulateTo(L, target);
+      const yaw = Math.atan2(hit.hx, hit.hz), dx = (rng() * 2 - 1) * o.runDrift, back = 5;
       start = {x: hit.x - hit.hx * back - Math.cos(yaw) * dx, y: target + 0.25 * back, z: hit.z - hit.hz * back + Math.sin(yaw) * dx, yaw};
     }
   }
@@ -540,9 +697,10 @@ function generate(n, variant, k) {
   }
   L.jumpLevel = isJump;
   const yaw = Math.atan2(land.hx, land.hz), rxp = -Math.cos(yaw), rzp = Math.sin(yaw);
-  const dxp = (rng() * 2 - 1) * (2 + 7 * d), size = Math.max(2.8, 9 - 5.5 * d);
+  const dxp = (rng() * 2 - 1) * o.poolDrift, size = o.poolSize;
   const shapes = ['c', 'r', 'tri', 'cross', 'L'];
-  if (n >= 4) shapes.push('donut');
+  if (o.rank >= 1) shapes.push('donut');
+  if (o.rank >= 8) shapes.push('strip', 'bar');
   let shape = n === 1 ? 'c' : shapes[Math.floor(rng() * shapes.length)];
   if (isJump) shape = 'jump';
   const pool = {cx: land.x + rxp * dxp, cz: land.z + rzp * dxp, yaw, shape};
@@ -552,6 +710,8 @@ function generate(n, variant, k) {
   else if (shape === 'cross') pool.prims = [{t: 'r', w: size * 0.6, d: size * 2}, {t: 'r', w: size * 2, d: size * 0.6}];
   else if (shape === 'L') pool.prims = [{t: 'r', w: size * 0.7, d: size * 2}, {t: 'r', w: size * 1.6, d: size * 0.7, x: size * 0.45, z: size * 0.65}];
   else if (shape === 'donut') { pool.prims = [{t: 'c', r: size + 4}]; pool.holes = [{r: 3.5}]; }
+  else if (shape === 'strip') pool.prims = [{t: 'r', w: size * 0.8, d: size * 2.6}]; // narrow: aim left-right carefully
+  else if (shape === 'bar') pool.prims = [{t: 'r', w: size * 2.6, d: size * 0.8}];   // shallow: judge the distance
   else pool.prims = [{t: 'r', w: Math.max(6, size * 1.4), d: Math.min(9, L.jumpGap * 1.2 - 2)}];
   L.pool = pool;
   return L;
@@ -628,7 +788,7 @@ function getLevel(n, skill) {
     let gotOne = false, chSum = 0, cnt = 0;
     for (let v = 0; v < 3; v++) {
       const c = generate(n, round * 3 + v, k);
-      if (!botPlay(c, BASE_P)) continue;                 // must be possible
+      if (c.clash || !botPlay(c, BASE_P)) continue;      // must be possible, with no slides running into each other
       gotOne = true;
       const ch = beatChance(c, skill, 10); c.chance = ch; c.diffK = k;
       chSum += ch; cnt++;
@@ -641,7 +801,7 @@ function getLevel(n, skill) {
     // too hard (or impossible) -> easier; too easy -> harder (binary search on the difficulty knob)
     if (!gotOne || avg < TARGET_CHANCE) { hi = k; k = (k + lo) / 2; } else { lo = k; k = Math.min((k + hi) / 2, 1.8); }
   }
-  if (!best) { for (let v = 50; v < 80 && !best; v++) { const c = generate(n, v, 0.1); if (botPlay(c, BASE_P)) { best = c; c.chance = beatChance(c, skill, 10); } } }
+  if (!best) { for (let v = 50; v < 80 && !best; v++) { const c = generate(n, v, 0.1); if (!c.clash && botPlay(c, BASE_P)) { best = c; c.chance = beatChance(c, skill, 10); } } }
   if (!best) { best = generate(n, 0, 0.1); best.chance = 0; }
   if (levelCache.size > 40) levelCache.clear();
   levelCache.set(key, best);
@@ -1219,7 +1379,7 @@ function win() {
   $('winSkill').textContent = 'Skill ' + pct(before) + ' → ' + pct(save.skill);
   const gain = xpForWin(level), oldXP = save.xp;
   save.xp += gain; persist();
-  $('winFlags').innerHTML = flagsHTML(levelRedFlags(level)) + ' &nbsp;<b>+' + gain + ' XP</b>';
+  $('winFlags').innerHTML = flagsHTML(levelDifficulty(level)) + ' &nbsp;<b>+' + gain + ' XP</b>';
   startPassAnim(oldXP, save.xp);
 }
 function die() {
@@ -1401,7 +1561,7 @@ function showReady(i) {
   mode = 'ready'; showControls(true);
 
   $('readyTitle').textContent = 'Level ' + (i + 1) + ': ' + level.name;
-  const chanceLine = '<br><b>Difficulty:</b> ' + flagsHTML(levelRedFlags(level)) + '<br><b>Chance to beat:</b> ' + pct(level.chance || 0) + ' at your skill (' + pct(save.skill) + ') · ❤ ' + save.revives + ' revives';
+  const chanceLine = '<br><b>Difficulty:</b> ' + flagsHTML(levelDifficulty(level)) + '<br><b>Chance to beat:</b> ' + pct(level.chance || 0) + ' at your skill (' + pct(save.skill) + ') · ❤ ' + save.revives + ' revives';
   const k = curSkin(), b = curBoat();
   const loops = level.runs.some(r => r.samples.some(s => s.loop));
   const hint = level.jumpLevel ? 'The pool is too far! Press JUMP near the end of the last slide.' : 'Steer into every turn or you will fly off the edge! Jump off and land further down for a shortcut.';
@@ -1535,33 +1695,57 @@ addEventListener('keyup', e => {
 addEventListener('blur', () => { input.left = input.right = input.kl = input.kr = false; });
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
 
-// ---------- Difficulty flags: 50 red = 1 purple, 100 purple = 1 black ----------
-function levelRedFlags(L) {
+// ---------- Difficulty badge ----------
+// Difficulty goes up one step per rank (every RANK_LEVELS levels). The badge shows 1-5 icons;
+// 5 of one colour roll over into 1 of the next colour. When the flag colours run out it switches
+// to stars, then gems, crowns and trophies. After all of those it starts over with a lap number.
+const BADGE_COLORS = [['red', '#ff2d2d'], ['orange', '#ff8c1a'], ['yellow', '#ffd60a'], ['green', '#2ecc40'], ['blue', '#2d7dff'],
+  ['purple', '#9b30ff'], ['pink', '#ff5ac8'], ['white', '#f4f4f4'], ['black', '#161616']];
+// 9x9 pixel pictures: c = colour, h = shine, p = pole
+const BADGE_ICONS = [
+  ['flag', ['.........', '.pcccc...', '.phcccc..', '.pccccc..', '.pcccc...', '.p.......', '.p.......', '.p.......', '.p.......']],
+  ['star', ['....c....', '...ccc...', 'cccchcccc', '.ccccccc.', '..ccccc..', '..ccccc..', '.ccc.ccc.', '.cc...cc.', '.........']],
+  ['gem', ['....c....', '...ccc...', '..chccc..', '.ccccccc.', 'ccccccccc', '.ccccccc.', '..ccccc..', '...ccc...', '....c....']],
+  ['crown', ['.........', 'c...c...c', 'cc.ccc.cc', 'ccccccccc', 'chccccccc', 'ccccccccc', '.ccccccc.', '.........', '.........']],
+  ['trophy', ['ccccccccc', 'c.chccc.c', '.ccccccc.', '..ccccc..', '...ccc...', '....c....', '...ccc...', '..ccccc..', '.........']]
+];
+// Difficulty step of a level: its rank, nudged down for easier versions and up for harder ones.
+function levelDifficulty(L) {
   const k = L.diffK == null ? 0.3 : L.diffK;
-  return clamp(Math.round(Math.pow(1.16, (L.n - 1) * Math.sqrt(Math.max(0.05, k)))), 1, 2500); // max 50 purple
+  return Math.max(0, (L.rank == null ? levelRank(L.n) : L.rank) + Math.round(Math.log2(Math.max(0.05, k)) * 2));
 }
 const FLAG_IMG = {};
-function flagImg(color) {
-  if (FLAG_IMG[color]) return FLAG_IMG[color];
-  const c = document.createElement('canvas'); c.width = 7; c.height = 9;
-  const g = c.getContext('2d');
-  g.fillStyle = '#5a4632'; g.fillRect(0, 0, 1, 9);
-  g.fillStyle = color; g.fillRect(1, 0, 5, 4); g.fillRect(1, 1, 6, 2);
-  g.fillStyle = 'rgba(255,255,255,.4)'; g.fillRect(2, 1, 1, 1);
-  return FLAG_IMG[color] = c.toDataURL();
+function flagImg(icon, color) {
+  const key = icon + color;
+  if (FLAG_IMG[key]) return FLAG_IMG[key];
+  const rows = BADGE_ICONS.find(b => b[0] === icon)[1], c = document.createElement('canvas'); c.width = 11; c.height = 11;
+  const g = c.getContext('2d'), at = (x, y) => (rows[y] || '')[x] || '.';
+  for (let y = -1; y <= 9; y++) for (let x = -1; x <= 9; x++) {
+    const ch = at(x, y);
+    if (ch === 'p') g.fillStyle = '#5a4632';
+    else if (ch === 'c') g.fillStyle = color;
+    else if (ch === 'h') g.fillStyle = '#ffffff';
+    else if ('ch'.includes(at(x - 1, y)) || 'ch'.includes(at(x + 1, y)) || 'ch'.includes(at(x, y - 1)) || 'ch'.includes(at(x, y + 1))) g.fillStyle = 'rgba(0,0,0,.55)'; // dark outline so white and yellow show up
+    else continue;
+    g.fillRect(x + 1, y + 1, 1, 1);
+  }
+  return FLAG_IMG[key] = c.toDataURL();
 }
-function flagsHTML(red) {
-  const black = Math.floor(red / 5000), purple = Math.floor((red % 5000) / 50), r = red % 50;
-  // up to 5 flags are drawn; more than that shows one flag and a number
-  const part = (n, color) => !n ? '' : (n <= 5 ? ('<img class="flag" src="' + flagImg(color) + '">').repeat(n) : '<img class="flag" src="' + flagImg(color) + '"><b>×' + n + '</b>');
-  return '<span class="flags">' + part(black, '#111111') + part(purple, '#9b30ff') + part(r, '#ff2d2d') + '</span>';
+function flagsHTML(step) {
+  const tier = Math.floor(step / 5), count = step % 5 + 1, perLap = BADGE_COLORS.length * BADGE_ICONS.length;
+  const lap = Math.floor(tier / perLap), t = tier % perLap;
+  const [cname, color] = BADGE_COLORS[t % BADGE_COLORS.length], icon = BADGE_ICONS[Math.floor(t / BADGE_COLORS.length)][0];
+  // the words say the same as the colours, for anyone who can't tell the colours apart
+  const label = (lap ? 'lap ' + (lap + 1) + ', ' : '') + count + ' ' + cname + ' ' + (count === 1 ? icon : icon === 'trophy' ? 'trophies' : icon + 's');
+  return '<span class="flags" title="' + label + '">' + (lap ? '<b>' + (lap + 1) + '×</b>' : '') +
+    ('<img class="flag" alt="" src="' + flagImg(icon, color) + '">').repeat(count) + ' <small>' + label + '</small></span>';
 }
 
 // ---------- XP, checkpoints and rewards ----------
 function cpCost(k) { return 100 + 10 * k; }               // XP from checkpoint k-1 to k
 function cpTotal(k) { return 100 * k + 5 * k * (k + 1); }  // total XP to reach checkpoint k
 function cpIndex(xp) { let k = 0; while (cpTotal(k + 1) <= xp) k++; return k; }
-function xpForWin(L) { return 20 + 2 * L.n + Math.floor(6 * Math.log2(1 + levelRedFlags(L))); }
+function xpForWin(L) { return 20 + 2 * L.n + 4 * levelDifficulty(L); }
 function cpReward(k) {
   if (k % 2 === 1) return {type: 'revive', count: 2 + Math.floor(k / 8)};
   const m = k / 2, tier = Math.min(5, Math.floor(m / 3) + (k % 10 === 0 ? 1 : 0));
