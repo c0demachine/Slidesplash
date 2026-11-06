@@ -1,0 +1,32 @@
+# macOS
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+Icon?
+
+# iCloud Drive placeholders for files not yet downloaded
+*.icloud
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python (scripts/check_sri.py)
+__pycache__/
+*.pyc
+
+# Local env / secrets: never commit these
+.env
+.env.*
+*.pem
+*.key
+
+# Archives and logs
+*.zip
+*.log
+
+# Claude Code per-user settings
+.claude/settings.local.json
