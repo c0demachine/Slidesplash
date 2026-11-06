@@ -63,6 +63,35 @@
   @keyframes shine{to{background-position:300% 0}}
   @media (max-width:420px){#hud{padding:10px 8px;font-size:15px} #hud .group{gap:4px} .pill{padding:7px 9px;white-space:nowrap} .iconbtn{width:36px;height:36px;font-size:17px}}
   .iconbtn.new{background:#ff5a8a;box-shadow:0 0 0 3px #fff}
+  .icon{width:46px;height:46px;image-rendering:pixelated;border-radius:8px;display:block;margin:0 auto 6px}
+  .packrow{display:flex;align-items:center;gap:10px;text-align:left;border:3px solid #e3e8f0;border-radius:16px;padding:8px 10px;margin:8px 0;background:#f7f9fc}
+  .packrow .mini{width:34px;height:46px;border-radius:7px;flex:none;box-shadow:inset 0 0 0 3px rgba(255,255,255,.4),0 3px 0 rgba(0,0,0,.2)}
+  .packrow div{flex:1;min-width:0}
+  .packrow small{display:block;color:#667;font-size:12px}
+  .buy.armed{background:#ff5a8a;box-shadow:0 4px 0 #c73562}
+  /* pack opening: the pack floats, shakes while glowing the colour of what's inside, then bursts */
+  #packOpen{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(10,20,50,.78);z-index:21;overflow:hidden}
+  #packOpen.show{display:flex}
+  #poRays{position:absolute;width:160vmax;height:160vmax;left:50%;top:50%;margin:-80vmax 0 0 -80vmax;border-radius:50%;opacity:0;transition:opacity .3s;
+    background:repeating-conic-gradient(var(--glow,#fff) 0deg 10deg,transparent 10deg 20deg);-webkit-mask:radial-gradient(circle,#000 0,transparent 55%);mask:radial-gradient(circle,#000 0,transparent 55%);animation:spin 9s linear infinite}
+  #packOpen.shaking #poRays{opacity:.6}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #poPack{position:relative;width:180px;height:250px;border:0;border-radius:18px;cursor:pointer;color:#fff;font:inherit;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;
+    background:linear-gradient(160deg,rgba(255,255,255,.5),rgba(255,255,255,0) 45%),var(--pk,#9aa3b3);box-shadow:0 10px 0 rgba(0,0,0,.3),inset 0 0 0 5px rgba(255,255,255,.35);text-shadow:0 2px 0 rgba(0,0,0,.4);animation:float 1.6s ease-in-out infinite}
+  #poPack::before,#poPack::after{content:"";position:absolute;left:0;right:0;height:14px;background:repeating-linear-gradient(90deg,rgba(0,0,0,.25) 0 6px,rgba(255,255,255,.3) 6px 12px)}
+  #poPack::before{top:10px} #poPack::after{bottom:10px}
+  #poName{font-size:19px;padding:0 12px;line-height:1.15}
+  .poBig{font-size:74px;line-height:1}
+  .poTap{font-size:15px;background:rgba(0,0,0,.35);padding:6px 14px;border-radius:999px}
+  @keyframes float{50%{transform:translateY(-10px) rotate(2deg)}}
+  #packOpen.shaking #poPack{animation:packShake .09s linear infinite}
+  @keyframes packShake{0%,100%{transform:translate(-4px,0) rotate(-4deg) scale(1.06)}50%{transform:translate(4px,-3px) rotate(4deg) scale(1.12)}}
+  #packOpen.burst #poPack{animation:packBurst .35s ease-in forwards}
+  @keyframes packBurst{to{transform:scale(1.9);opacity:0}}
+  #poFlash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+  #packOpen.burst #poFlash{animation:flash .55s ease-out}
+  @keyframes flash{20%{opacity:.95}100%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){#poPack,#poRays{animation:none!important}}
   #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-weight:800;padding:8px 16px;border-radius:999px;display:none}
 </style>
 </head>
@@ -98,13 +127,16 @@
 <div class="overlay" id="scrShop"><div class="card">
   <h2>Shop</h2>
   <div class="coins" id="shopCoins">● 0 coins</div>
+  <div class="section">Packs (tap the price twice to buy)</div>
+  <p style="margin:2px 0;font-size:13px;text-align:left">Packs are expensive! Winning levels fills your Slide Pass, which gives you packs for free.</p>
+  <div id="packShop"></div>
   <div class="section">Boats (each one is better than the last)</div>
   <div class="grid" id="boatGrid"></div>
   <div class="section">Babies (each one has a perk)</div>
   <div class="grid" id="skinGrid"></div>
-  <div class="section">Pack boats (only from Slide Pass packs)</div>
+  <div class="section">Pack boats (only from packs) <small id="packBoatCount" style="color:#778"></small></div>
   <div class="grid" id="packBoatGrid"></div>
-  <div class="section">Pack babies (only from Slide Pass packs)</div>
+  <div class="section">Pack babies (only from packs) <small id="packSkinCount" style="color:#778"></small></div>
   <div class="grid" id="packSkinGrid"></div>
   <div class="section">Upgrades</div>
   <div id="upgList"></div>
@@ -136,6 +168,11 @@
   <p id="packText"></p>
   <div class="row"><button class="big green" id="packEquip">Equip</button><button class="big" id="packOk">Nice!</button></div>
 </div></div>
+
+<div id="packOpen"><div id="poRays"></div>
+  <button id="poPack" aria-label="Open the pack"><span id="poName">Common Ship Pack</span><span class="poBig" aria-hidden="true">?</span><span class="poTap">Tap to open!</span></button>
+  <div id="poFlash"></div>
+</div>
 
 <div class="overlay" id="scrReady"><div class="card">
   <h2 id="readyTitle">Level 1</h2>
@@ -219,6 +256,16 @@ function addWiggle(run, waves, segLen, amp, slope) {
   addCurve(run, segLen / 2, amp / 2, slope);
   for (let k = 0; k < waves; k++) addCurve(run, segLen, (k % 2 ? 1 : -1) * amp, slope);
   addCurve(run, segLen / 2, (waves % 2 ? 1 : -1) * amp / 2, slope);
+}
+// Weave through a list of headings (relative to now), one segment each, ending straight again.
+function addWeave(run, heads, segLen, slope) {
+  let h = 0;
+  for (const want of heads.concat([0])) { addCurve(run, segLen, want - h, slope); h = want; }
+}
+// Slope that changes smoothly from `a` to `b` (no sharp crease), optionally while turning.
+function addBlend(run, len, a, b, dyaw) {
+  const n = Math.max(2, Math.round(len / DS));
+  for (let i = 0; i < n; i++) { const f = (i + 0.5) / n, sm = f * f * (3 - 2 * f); addCurve(run, len / n, (dyaw || 0) / n, a + (b - a) * sm); }
 }
 function switchbackDrop(w, legs, legLen, slope) { return legs * legLen * slope + (legs - 1) * Math.PI * (w + 1.6) * slope * 0.5; }
 // Vertical loop-de-loop; comes out shifted sideways so it doesn't hit itself.
@@ -583,6 +630,53 @@ const TEMPLATES = [
     const R = o.r(6, 8), slope = Math.max(o.r(0.14, 0.2), 5.5 / (2 * Math.PI * R)), turns = o.r(1.25, 2), len = turns * 2 * Math.PI * R;
     const lr = o.r(5, 6.5), lead = R + lr + o.w + o.r(2, 4); // long enough that the loop doesn't rise into the corkscrew
     return slope * (len + lead) > rem ? null : run => { addCurve(run, len, dir * turns * 2 * Math.PI, slope); addCurve(run, lead, 0, slope); addLoop(run, lr, (o.w + 1) * -dir); };
+  }},
+  // ----- newer pieces: the first few also show up in easy versions, so easy levels aren't all the same -----
+  {id: 'dips', rank: 0, hard: 0.1, weight: 0.6, make(o, rem) { // staircase: quick steep drops with calm bits between
+    const steps = 2 + Math.floor(o.rng() * (2 + 2 * o.d)), steep = o.r(0.45, 0.6) * (1 - 0.25 * o.easy), calm = o.r(0.07, 0.12);
+    const l1 = o.r(5, 8), l2 = o.r(8, 13) * (1 + o.easy), drop = steps * ((l1 + 4) * steep + l2 * calm + 4 * calm);
+    return drop > rem ? null : run => { for (let k = 0; k < steps; k++) { addBlend(run, 2, calm, steep); addCurve(run, l1, 0, steep); addBlend(run, 4, steep, calm); addCurve(run, l2, 0, calm); } };
+  }},
+  {id: 'sweep', rank: 0, hard: 0.05, weight: 0.5, make(o, rem, dir) { // long, lazy curve with a great view
+    const slope = o.r(0.12, 0.2), full = o.r(40, 65) * (1 + o.easy * 0.5), f = Math.min(1, rem / (slope * full));
+    const dyaw = dir * o.r(60, 150) * DEG * f;
+    return full * f < 10 ? null : run => addCurve(run, full * f, dyaw, slope);
+  }},
+  {id: 'coaster', rank: 1, hard: 0.35, weight: 0.7, make(o, rem, dir) { // roller coaster: drop, turn, drop, turn the other way
+    const humps = 2 + Math.floor(o.rng() * (1 + 2 * o.d)), steep = o.r(0.4, 0.55), calm = o.r(0.1, 0.16);
+    const l1 = o.r(5, 8), lt = o.r(16, 24) * (1 + o.easy), a = o.r(50, 100) * o.bend * DEG;
+    return humps * ((l1 + 2) * steep + (lt + 3) * calm) > rem ? null : run => {
+      for (let k = 0, d = dir; k < humps; k++, d = -d) { addBlend(run, 2, calm, steep); addCurve(run, l1, 0, steep); addBlend(run, 3, steep, calm); addCurve(run, lt, d * a, calm); }
+    };
+  }},
+  {id: 'slalom', rank: 2, hard: 0.4, weight: 0.6, make(o, rem, dir) { // weave that gets wilder as you go
+    const waves = 3 + Math.floor(o.rng() * (2 + 2 * o.d)), segLen = o.r(13, 19) * (1 + o.easy), amp = o.r(50, 85) * o.bend * DEG, slope = o.r(0.16, 0.26);
+    const heads = []; for (let k = 0; k < waves; k++) heads.push((k % 2 ? -dir : dir) * amp * (0.35 + 0.65 * k / Math.max(1, waves - 1)) / 2);
+    return (waves + 1) * segLen * slope > rem ? null : run => addWeave(run, heads, segLen, slope);
+  }},
+  {id: 'funnel', rank: 2, hard: 0.45, weight: 0.5, make(o, rem, dir) { // spiral that keeps getting tighter, like going down a drain
+    const R0 = o.r(14, 17) * (1 + o.easy * 0.5), R1 = Math.max(6.5, R0 * o.r(0.45, 0.6)), q = Math.round(4 * o.r(1.25, 1.75 + o.d));
+    const parts = [];
+    let drop = 0;
+    for (let i = 0; i < q; i++) {
+      const R = R0 + (R1 - R0) * i / Math.max(1, q - 1), len = Math.PI / 2 * R, slope = Math.max(0.12, 5.5 / (2 * Math.PI * R));
+      if (drop + len * slope > rem) break;
+      drop += len * slope; parts.push([len, slope]);
+    }
+    return parts.length < 3 ? null : run => { for (const [len, slope] of parts) addCurve(run, len, dir * Math.PI / 2, slope); };
+  }},
+  {id: 'diveLoop', rank: 5, hard: 0.6, weight: 0.35, notAfter: LOOPS, make(o, rem, dir) { // steep dive straight into a loop
+    const s = o.r(0.5, 0.65), l = o.r(9, 14), R = o.r(5, 7);
+    return (l + 3) * s + 3 > rem ? null : run => { addCurve(run, l, 0, s); addBlend(run, 3, s, 0.12); addCurve(run, 6, 0, 0.12); addLoop(run, R, (o.w + 1) * dir); };
+  }},
+  {id: 'freefall', rank: 9, hard: 0.8, weight: 0.45, make(o, rem, dir) { // nearly a cliff, then straight into a tight corkscrew
+    const s = o.r(0.75, 0.95), l = o.r(8, 12), R = o.r(6, 7.5), slope = Math.max(0.15, 5.5 / (2 * Math.PI * R)), turns = o.r(1.25, 2 + o.hard);
+    const len = turns * 2 * Math.PI * R;
+    return l * s + 4 * 0.4 + len * slope > rem ? null : run => { addCurve(run, l, 0, s); addBlend(run, 4, s, slope); addCurve(run, len, dir * turns * 2 * Math.PI, slope); };
+  }},
+  {id: 'tripleLoop', rank: 18, hard: 1, weight: 0.25, notAfter: LOOPS, make(o, rem, dir) { // three loops in a row
+    const R = o.r(5, 6), slope = o.r(0.15, 0.22), gap = 2 * R + o.r(5, 8);
+    return slope * gap * 2 > rem ? null : run => { for (let k = 0; k < 3; k++) { if (k) addCurve(run, gap, 0, slope); addLoop(run, R, (o.w + 1) * dir); } };
   }}
 ];
 // Pick a piece the rules allow, weighted so that higher ranks lean toward the harder pieces.
@@ -710,6 +804,8 @@ function generate(n, variant, k) {
   const dxp = (rng() * 2 - 1) * o.poolDrift, size = o.poolSize;
   const shapes = ['c', 'r', 'tri', 'cross', 'L'];
   if (o.rank >= 1) shapes.push('donut');
+  if (o.rank >= 0 && n > 1) shapes.push('eight', 'stadium');
+  if (o.rank >= 2) shapes.push('clover');
   if (o.rank >= 8) shapes.push('strip', 'bar');
   let shape = n === 1 ? 'c' : shapes[Math.floor(rng() * shapes.length)];
   if (isJump) shape = 'jump';
@@ -722,6 +818,9 @@ function generate(n, variant, k) {
   else if (shape === 'donut') { pool.prims = [{t: 'c', r: size + 4}]; pool.holes = [{r: 3.5}]; }
   else if (shape === 'strip') pool.prims = [{t: 'r', w: size * 0.8, d: size * 2.6}]; // narrow: aim left-right carefully
   else if (shape === 'bar') pool.prims = [{t: 'r', w: size * 2.6, d: size * 0.8}];   // shallow: judge the distance
+  else if (shape === 'eight') pool.prims = [{t: 'c', r: size * 0.8, z: -size * 0.6}, {t: 'c', r: size * 0.8, z: size * 0.6}]; // figure eight, long way
+  else if (shape === 'stadium') pool.prims = [{t: 'r', w: size * 1.2, d: size * 1.4}, {t: 'c', r: size * 0.6, x: -size * 0.6}, {t: 'c', r: size * 0.6, x: size * 0.6}]; // running track
+  else if (shape === 'clover') pool.prims = [0, 1, 2].map(i => ({t: 'c', r: size * 0.62, x: Math.sin(i * 2.094) * size * 0.55, z: Math.cos(i * 2.094) * size * 0.55}));
   else pool.prims = [{t: 'r', w: Math.max(6, size * 1.4), d: Math.min(9, L.jumpGap * 1.2 - 2)}];
   L.pool = pool;
   return L;
@@ -820,6 +919,8 @@ function getLevel(n, skill) {
 //PHYS-END
 
 // ---------- Save data ----------
+// hat = what's on its head, pattern = markings on its body (stripes/spots/stars/check/scales), glow = shines a little.
+// Items without a written perk get one made from their stats (see perkText).
 const SKINS = [
   {id:'sunny', name:'Sunny', color:'#ffd23f', price:0, hat:null, perk:'No perk. The classic baby.'},
   {id:'cherry', name:'Cherry', color:'#ff4d4d', price:25, hat:'bow', coin:0.1, perk:'+10% coins'},
@@ -830,6 +931,9 @@ const SKINS = [
   {id:'midnight', name:'Midnight', color:'#2b2d42', price:150, hat:'visor', aim:true, perk:'Shows where you will land when flying'},
   {id:'gold', name:'Gold', color:'#ffb800', price:220, hat:'crown', coin:0.35, perk:'+35% coins'},
   {id:'rainbow', name:'Rainbow', color:'rainbow', price:400, hat:'halo', coin:0.2, steer:0.1, air:0.1, edge:0.4, aim:true, perk:'Landing marker, +20% coins, a bit of everything'},
+  {id:'captain', name:'Captain', color:'#1d4e89', price:650, hat:'pirate', pattern:'stripes', coin:0.35, steer:0.15, xp:0.1},
+  {id:'wizard', name:'Wizard', color:'#6a3df0', price:1000, hat:'wizard', pattern:'stars', aim:true, air:0.25, steer:0.15, xp:0.15},
+  {id:'robo', name:'Robo Baby', color:'#9aa7b8', price:1500, hat:'antenna', pattern:'check', glow:true, aim:true, edge:0.5, coin:0.3, steer:0.2, air:0.2, xp:0.2},
 ];
 
 const BOATS = [
@@ -837,10 +941,14 @@ const BOATS = [
   {id:'raft', name:'Log Raft', color:'#a0662d', price:100, steer:0.15, perk:'+15% steering'},
   {id:'speed', name:'Speedboat', color:'#f4f4f4', price:250, steer:0.25, air:0.25, coin:0.1, perk:'+25% steering, +25% air control, +10% coins'},
   {id:'rocket', name:'Rocket Boat', color:'#7b3cff', price:500, steer:0.4, air:0.4, coin:0.2, airJump:true, perk:'+40% steering & air, +20% coins, double jump in the air'},
+  {id:'minisub', name:'Mini Sub', shape:'sub', pal:[0xffd23f, 0x2fa8ff, 0x333333], color:'#ffd23f', price:900, spd:-0.05, steer:0.45, air:0.45, coin:0.25, airJump:true},
+  {id:'ufo', name:'UFO Saucer', shape:'ufo', pal:[0xb8c4d6, 0x36f5a0, 0x5a6478], color:'#b8c4d6', price:1600, spd:-0.08, steer:0.5, air:0.5, coin:0.3, xp:0.1, airJump:true},
+  {id:'pirate', name:'Pirate Ship', shape:'pirate', pal:[0x7a4a22, 0xf4f1ea, 0x222222], color:'#7a4a22', price:2600, spd:-0.1, steer:0.55, air:0.55, coin:0.35, xp:0.15, wall:0.3, airJump:true},
 ];
 
 // ---------- Pack-only items: their own rarity system, separate from the shop ----------
-// spd = speed change (negative = slower = easier to steer), steer/air = control, wall = how hard the walls push you back.
+// spd = speed change (negative = slower = easier to steer), steer/air = control, wall = how hard the walls push you back,
+// xp = extra Slide Pass XP per win.
 const RARITIES = [
   {id: 'common', name: 'Common', color: '#9aa3b3', dupe: 15},
   {id: 'uncommon', name: 'Uncommon', color: '#36c46a', dupe: 30},
@@ -855,37 +963,90 @@ const RAR = Object.fromEntries(RARITIES.map((r, i) => [r.id, Object.assign({rank
 const PACK_BOATS = [
   {id: 'p_noodle', name: 'Pool Noodle', rarity: 'common', shape: 'tube', pal: [0xff6bd6, 0xa3e635, 0xff6bd6], spd: 0.08, steer: 0.05, perk: '+8% speed (harder!), +5% steering'},
   {id: 'p_box', name: 'Cardboard Box', rarity: 'common', shape: 'raft', pal: [0xc8a165, 0xa8824a, 0x6b4423], spd: -0.05, steer: -0.1, perk: '-5% speed, but -10% steering'},
-  {id: 'p_duck', name: 'Duck Float', rarity: 'uncommon', shape: 'tube', pal: [0xffd23f, 0xff8c1a, 0x7fdcff], steer: 0.1, perk: '+10% steering'},
+  {id: 'p_pizza', name: 'Pizza Float', rarity: 'common', shape: 'pizza', pal: [0xffc94d, 0xd62828, 0xc98a3a], coin: 0.05, air: 0.03},
+  {id: 'p_duck', name: 'Duck Float', rarity: 'uncommon', shape: 'swan', pal: [0xffd23f, 0xff8c1a, 0xffd23f], steer: 0.1, perk: '+10% steering'},
+  {id: 'p_banana', name: 'Banana Boat', rarity: 'uncommon', shape: 'banana', pal: [0xffe14d, 0x6b8e23, 0x3a2a12], steer: 0.08, air: 0.06},
+  {id: 'p_canoe', name: 'Wooden Canoe', rarity: 'uncommon', shape: 'canoe', pal: [0xb5651d, 0x7a3e12, 0xf4d58d], spd: -0.05, steer: 0.08},
   {id: 'p_jetski', name: 'Jet Ski', rarity: 'rare', shape: 'speed', pal: [0x3fa9ff, 0xffffff, 0x1f2d5c], spd: 0.1, steer: 0.2, air: 0.1, perk: '+10% speed (risky), +20% steering, +10% air'},
+  {id: 'p_swan', name: 'Swan Float', rarity: 'rare', shape: 'swan', pal: [0xf7f7f7, 0xff8c1a, 0xf7f7f7], spd: -0.05, steer: 0.15, air: 0.1},
+  {id: 'p_bubsub', name: 'Bubble Sub', rarity: 'rare', shape: 'sub', pal: [0x22d3ee, 0xffffff, 0x0e7490], steer: 0.1, air: 0.15, xp: 0.1},
   {id: 'p_steamer', name: 'Paddle Steamer', rarity: 'epic', shape: 'raft', pal: [0xd62828, 0x8a1c1c, 0xffd23f], spd: -0.1, steer: 0.15, wall: 0.3, perk: '-10% speed, +15% steering, stronger walls'},
+  {id: 'p_viking', name: 'Viking Longboat', rarity: 'epic', shape: 'pirate', pal: [0x8b5a2b, 0xd62828, 0xffd23f], spd: -0.08, steer: 0.2, air: 0.15, coin: 0.1},
+  {id: 'p_cloud', name: 'Cloud Rider', rarity: 'epic', shape: 'cloud', pal: [0xffffff, 0xbfe9ff, 0xffd23f], spd: -0.12, steer: 0.15, air: 0.25},
   {id: 'p_hover', name: 'Hover Raft', rarity: 'legendary', shape: 'speed', pal: [0xffc400, 0x8a5cff, 0x222222], spd: -0.15, steer: 0.25, air: 0.2, perk: '-15% speed, +25% steering, +20% air'},
-  {id: 'p_dragon', name: 'Dragon Boat', rarity: 'mythic', shape: 'rocket', pal: [0xc1121f, 0xffc400, 0x2b0a0a], spd: -0.1, steer: 0.35, air: 0.35, coin: 0.25, airJump: true, perk: '-10% speed, +35% steering & air, +25% coins, double jump'},
+  {id: 'p_galleon', name: 'Golden Galleon', rarity: 'legendary', shape: 'pirate', pal: [0xd4a017, 0xfff3c4, 0x5a3a0a], glow: true, spd: -0.12, steer: 0.25, air: 0.2, coin: 0.2, airJump: true},
+  {id: 'p_crystal', name: 'Crystal UFO', rarity: 'legendary', shape: 'ufo', pal: [0x9be7ff, 0xff7af5, 0x3a7ca5], glow: true, spd: -0.15, steer: 0.25, air: 0.25, xp: 0.15, airJump: true},
+  {id: 'p_dragon', name: 'Dragon Boat', rarity: 'mythic', shape: 'dragon', pal: [0xc1121f, 0xffc400, 0x2b0a0a], spd: -0.1, steer: 0.35, air: 0.35, coin: 0.25, airJump: true, perk: '-10% speed, +35% steering & air, +25% coins, double jump'},
+  {id: 'p_phoenix', name: 'Phoenix Rocket', rarity: 'mythic', shape: 'rocket', pal: [0xff6a00, 0xffe14d, 0x8a1c1c], glow: true, spd: -0.12, steer: 0.35, air: 0.35, coin: 0.2, xp: 0.2, airJump: true},
+  {id: 'p_kraken', name: 'Kraken Sub', rarity: 'mythic', shape: 'sub', pal: [0x6a1b9a, 0x39ff88, 0x2a0a3a], spd: -0.15, steer: 0.35, air: 0.3, wall: 0.4, coin: 0.25, airJump: true},
   {id: 'p_galaxy', name: 'Galaxy Cruiser', rarity: 'exotic', shape: 'rocket', pal: [0x3a0ca3, 0x22e3d0, 0x120a2a], spd: -0.22, steer: 0.4, air: 0.4, coin: 0.4, airJump: true, wall: 0.4, perk: '-22% speed, +40% steering & air, +40% coins, double jump'},
-  {id: 'p_turtle', name: 'Turtle Shell', rarity: 'secret', shape: 'tube', pal: [0x2d6a4f, 0x95d5b2, 0x1b4332], spd: -0.45, steer: 0.5, wall: 1.0, coin: 0.5, airJump: true, perk: 'SECRET: stays slow the whole ride, +50% steering, super walls, +50% coins, double jump'},
+  {id: 'p_storm', name: 'Storm Cloud', rarity: 'exotic', shape: 'cloud', pal: [0x4a5568, 0xffe14d, 0x2d3748], glow: true, spd: -0.22, steer: 0.4, air: 0.45, coin: 0.35, xp: 0.25, airJump: true},
+  {id: 'p_icedragon', name: 'Ice Dragon', rarity: 'exotic', shape: 'dragon', pal: [0x9be7ff, 0xffffff, 0x1d4e89], glow: true, spd: -0.25, steer: 0.45, air: 0.4, wall: 0.5, coin: 0.3, airJump: true},
+  {id: 'p_turtle', name: 'Turtle Shell', rarity: 'secret', shape: 'shell', pal: [0x2d6a4f, 0x95d5b2, 0x1b4332], spd: -0.45, steer: 0.5, wall: 1.0, coin: 0.5, airJump: true, perk: 'SECRET: stays slow the whole ride, +50% steering, super walls, +50% coins, double jump'},
+  {id: 'p_goldduck', name: 'Golden Duck', rarity: 'secret', shape: 'swan', pal: [0xffcf33, 0xff6a00, 0xffcf33], glow: true, spd: -0.4, steer: 0.5, air: 0.5, coin: 0.75, xp: 0.25, airJump: true},
+  {id: 'p_mothership', name: 'Mothership', rarity: 'secret', shape: 'ufo', pal: [0x111111, 0x39ff14, 0x39ff14], glow: true, spd: -0.45, steer: 0.55, air: 0.55, wall: 0.8, coin: 0.5, xp: 0.4, edge: 0.6, airJump: true},
 ];
 const PACK_SKINS = [
-  {id: 'p_mud', name: 'Mud Baby', rarity: 'common', color: '#7a5230', hat: null, coin: 0.05, perk: '+5% coins'},
-  {id: 'p_sock', name: 'Sock Baby', rarity: 'common', color: '#e6e6e6', hat: 'leaf', steer: -0.05, air: 0.1, perk: '+10% air, but -5% steering'},
+  {id: 'p_mud', name: 'Mud Baby', rarity: 'common', color: '#7a5230', hat: null, pattern: 'spots', coin: 0.05, perk: '+5% coins'},
+  {id: 'p_sock', name: 'Sock Baby', rarity: 'common', color: '#e6e6e6', hat: 'leaf', pattern: 'stripes', steer: -0.05, air: 0.1, perk: '+10% air, but -5% steering'},
+  {id: 'p_pea', name: 'Pea Baby', rarity: 'common', color: '#9ad35a', hat: 'flower', steer: 0.05},
   {id: 'p_mint', name: 'Mint', rarity: 'uncommon', color: '#3ee6c1', hat: 'bow', steer: 0.08, perk: '+8% steering'},
+  {id: 'p_bunny', name: 'Bunny', rarity: 'uncommon', color: '#f5e1e6', hat: 'ears', air: 0.1},
+  {id: 'p_chef', name: 'Little Chef', rarity: 'uncommon', color: '#ffffff', hat: 'chef', pattern: 'check', coin: 0.12},
   {id: 'p_ninja', name: 'Ninja', rarity: 'rare', color: '#1a1a1a', hat: 'visor', air: 0.2, steer: 0.05, perk: '+20% air, +5% steering'},
-  {id: 'p_lava', name: 'Lava', rarity: 'epic', color: '#ff4500', hat: 'crown', spd: 0.05, coin: 0.3, perk: '+30% coins, but +5% speed'},
-  {id: 'p_frost', name: 'Frost', rarity: 'legendary', color: '#a8e6ff', hat: 'goggles', spd: -0.1, steer: 0.12, perk: '-10% speed, +12% steering'},
-  {id: 'p_neon', name: 'Neon', rarity: 'mythic', color: '#ff2bd6', hat: 'halo', aim: true, steer: 0.15, spd: -0.05, perk: 'Landing marker, +15% steering, -5% speed'},
-  {id: 'p_cosmic', name: 'Cosmic', rarity: 'exotic', color: '#5a189a', hat: 'halo', spd: -0.15, aim: true, edge: 0.6, coin: 0.2, perk: '-15% speed, landing marker, pool edges count, +20% coins'},
-  {id: 'p_snail', name: 'Snail Baby', rarity: 'secret', color: '#8bc34a', hat: 'cap', spd: -0.45, steer: 0.4, wall: 0.8, coin: 0.4, perk: 'SECRET: slow the whole time, +40% steering, super walls, +40% coins'},
+  {id: 'p_cowpoke', name: 'Cowpoke', rarity: 'rare', color: '#d9a066', hat: 'cowboy', pattern: 'spots', steer: 0.12, coin: 0.08},
+  {id: 'p_party', name: 'Party Baby', rarity: 'rare', color: '#ff9f1c', hat: 'party', pattern: 'spots', coin: 0.15, air: 0.05},
+  {id: 'p_lava', name: 'Lava', rarity: 'epic', color: '#ff4500', hat: 'crown', glow: true, spd: 0.05, coin: 0.3, perk: '+30% coins, but +5% speed'},
+  {id: 'p_tiger', name: 'Tiger', rarity: 'epic', color: '#ff9f1c', hat: 'ears', pattern: 'stripes', steer: 0.18, air: 0.1},
+  {id: 'p_dj', name: 'DJ Baby', rarity: 'epic', color: '#3a86ff', hat: 'headphones', pattern: 'check', xp: 0.15, coin: 0.15},
+  {id: 'p_frost', name: 'Frost', rarity: 'legendary', color: '#a8e6ff', hat: 'goggles', pattern: 'stars', spd: -0.1, steer: 0.12, perk: '-10% speed, +12% steering'},
+  {id: 'p_astro', name: 'Astronaut', rarity: 'legendary', color: '#f1f1f1', hat: 'helmet', spd: -0.1, air: 0.2, aim: true},
+  {id: 'p_zebra', name: 'Zebra', rarity: 'legendary', color: '#f4f4f4', hat: 'propeller', pattern: 'stripes', spd: -0.05, steer: 0.2, air: 0.15},
+  {id: 'p_neon', name: 'Neon', rarity: 'mythic', color: '#ff2bd6', hat: 'halo', glow: true, aim: true, steer: 0.15, spd: -0.05, perk: 'Landing marker, +15% steering, -5% speed'},
+  {id: 'p_devil', name: 'Little Devil', rarity: 'mythic', color: '#d00000', hat: 'horns', glow: true, spd: -0.08, steer: 0.25, coin: 0.3},
+  {id: 'p_mermaid', name: 'Mermaid', rarity: 'mythic', color: '#2ec4b6', hat: 'flower', pattern: 'scales', spd: -0.1, air: 0.2, edge: 0.6, xp: 0.2},
+  {id: 'p_cosmic', name: 'Cosmic', rarity: 'exotic', color: '#5a189a', hat: 'halo', pattern: 'stars', glow: true, spd: -0.15, aim: true, edge: 0.6, coin: 0.2, perk: '-15% speed, landing marker, pool edges count, +20% coins'},
+  {id: 'p_dragonkid', name: 'Dragon Kid', rarity: 'exotic', color: '#2d6a4f', hat: 'horns', pattern: 'scales', spd: -0.18, steer: 0.3, air: 0.3, coin: 0.3},
+  {id: 'p_spooky', name: 'Spooky', rarity: 'exotic', color: '#e0e7ff', hat: 'tophat', glow: true, spd: -0.15, bounce: true, aim: true, xp: 0.25},
+  {id: 'p_snail', name: 'Snail Baby', rarity: 'secret', color: '#8bc34a', hat: 'cap', pattern: 'spots', spd: -0.45, steer: 0.4, wall: 0.8, coin: 0.4, perk: 'SECRET: slow the whole time, +40% steering, super walls, +40% coins'},
+  {id: 'p_golden', name: 'Golden Child', rarity: 'secret', color: '#ffcf33', hat: 'crown', pattern: 'stars', glow: true, spd: -0.35, steer: 0.4, air: 0.4, coin: 0.75, xp: 0.3, aim: true},
+  {id: 'p_void', name: 'Void Baby', rarity: 'secret', color: '#14112a', hat: 'wizard', pattern: 'stars', glow: true, spd: -0.4, steer: 0.45, air: 0.45, wall: 0.6, edge: 0.8, bounce: true, aim: true, xp: 0.4},
 ];
+// Perk text made from an item's stats, so the words always match what it really does.
+function perkText(it) {
+  const pc = v => (v > 0 ? '+' : '') + Math.round(v * 100) + '%', out = [];
+  if (it.spd) out.push(pc(it.spd) + ' speed' + (it.spd > 0 ? ' (harder!)' : ''));
+  if (it.steer && it.steer === it.air) out.push(pc(it.steer) + ' steering & air');
+  else { if (it.steer) out.push(pc(it.steer) + ' steering'); if (it.air) out.push(pc(it.air) + ' air'); }
+  if (it.coin) out.push(pc(it.coin) + ' coins');
+  if (it.xp) out.push(pc(it.xp) + ' XP');
+  if (it.wall) out.push(it.wall >= 0.8 ? 'super walls' : 'stronger walls');
+  if (it.edge) out.push('pool edges count');
+  if (it.aim) out.push('landing marker');
+  if (it.bounce) out.push('bounce once if you miss');
+  if (it.airJump) out.push('double jump');
+  return (it.rarity === 'secret' ? 'SECRET: ' : '') + (out.join(', ') || 'Just for looks');
+}
+for (const it of [...SKINS, ...BOATS, ...PACK_BOATS, ...PACK_SKINS]) if (!it.perk) it.perk = perkText(it);
+BOATS.forEach(b => b.kind = 'boat'); SKINS.forEach(k => k.kind = 'skin');
 const PACK_ITEMS = PACK_BOATS.map(b => Object.assign({kind: 'boat'}, b)).concat(PACK_SKINS.map(k => Object.assign({kind: 'skin'}, k)));
-// Pack types and the chance (in %) of each rarity. Secrets only come from Exotic packs, 1%.
+// Pack types, their price in the shop, and the chance (in %) of each rarity.
+// Secrets come from Exotic packs (1%) and the Secret Pack (15%), which you can only buy or earn every 50th checkpoint.
+// Prices are high on purpose: winning levels and the Slide Pass are the main way to get packs.
 const PACKS = [
-  {id: 'common', name: 'Common Ship Pack', color: '#9aa3b3', odds: {common: 75, uncommon: 22, rare: 3}},
-  {id: 'rare', name: 'Rare Ship Pack', color: '#3fa9ff', odds: {common: 30, uncommon: 40, rare: 25, epic: 5}},
-  {id: 'epic', name: 'Epic Ship Pack', color: '#9b5cff', odds: {uncommon: 25, rare: 40, epic: 28, legendary: 7}},
-  {id: 'legendary', name: 'Legendary Ship Pack', color: '#ffb800', odds: {rare: 30, epic: 40, legendary: 25, mythic: 5}},
-  {id: 'mythic', name: 'Mythic Ship Pack', color: '#ff3d7f', odds: {epic: 35, legendary: 40, mythic: 22, exotic: 3}},
-  {id: 'exotic', name: 'Exotic Ship Pack', color: '#19e3c4', odds: {legendary: 35, mythic: 40, exotic: 24, secret: 1}},
+  {id: 'common', name: 'Common Ship Pack', color: '#9aa3b3', price: 1000, odds: {common: 75, uncommon: 22, rare: 3}},
+  {id: 'rare', name: 'Rare Ship Pack', color: '#3fa9ff', price: 2500, odds: {common: 30, uncommon: 40, rare: 25, epic: 5}},
+  {id: 'epic', name: 'Epic Ship Pack', color: '#9b5cff', price: 5000, odds: {uncommon: 25, rare: 40, epic: 28, legendary: 7}},
+  {id: 'legendary', name: 'Legendary Ship Pack', color: '#ffb800', price: 10000, odds: {rare: 30, epic: 40, legendary: 25, mythic: 5}},
+  {id: 'mythic', name: 'Mythic Ship Pack', color: '#ff3d7f', price: 18000, odds: {epic: 35, legendary: 40, mythic: 22, exotic: 3}},
+  {id: 'exotic', name: 'Exotic Ship Pack', color: '#19e3c4', price: 30000, odds: {legendary: 35, mythic: 40, exotic: 24, secret: 1}},
+  {id: 'secret', name: 'Secret Ship Pack', color: '#111111', price: 50000, odds: {mythic: 30, exotic: 55, secret: 15}},
 ];
 function curSkin() { return SKINS.find(k => k.id === save.skin) || PACK_SKINS.find(k => k.id === save.skin) || SKINS[0]; }
 function curBoat() { return BOATS.find(b => b.id === save.boat) || PACK_BOATS.find(b => b.id === save.boat) || BOATS[0]; }
+// A perk from your baby or your boat (either one counts).
+function hasPerk(key) { return !!(curSkin()[key] || curBoat()[key]); }
+function perkMax(key) { return Math.max(curSkin()[key] || 0, curBoat()[key] || 0); }
 const UPGRADES = [
   {id:'steer', name:'Steering', desc:'Turn faster on the slide'},
   {id:'air', name:'Air Control', desc:'Steer better in the air'},
@@ -981,6 +1142,8 @@ const Sfx = (() => {
     coin() { [988, 1319, 1760].forEach((f, i) => tone(f, 0.18, 'square', 0.08, null, i * 0.08)); },
     buy() { [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.15, 'triangle', 0.12, null, i * 0.06)); },
     nope() { tone(200, 0.18, 'square', 0.1, 120); },
+    rumble() { noise(1.6, 150, 0.3, 'lowpass', 0, 1400); tone(80, 1.5, 'triangle', 0.1, 320); },
+    pop() { noise(0.5, 2500, 0.55, 'highpass'); tone(700, 0.3, 'square', 0.1, 1800); },
   };
 })();
 addEventListener('pointerdown', () => Sfx.init(), true);
@@ -998,7 +1161,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8fd3ff);
 scene.fog = new THREE.Fog(0x8fd3ff, 200, 700);
 const cam = new THREE.PerspectiveCamera(62, innerWidth / innerHeight, 0.1, 1600);
-scene.add(new THREE.HemisphereLight(0xffffff, 0x5a8f4a, 0.75));
+const hemi = new THREE.HemisphereLight(0xffffff, 0x5a8f4a, 0.75);
+scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.8);
 sun.position.set(-40, 80, -20);
 sun.castShadow = true;
@@ -1055,6 +1219,7 @@ const box = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxG
 })();
 
 const hats = {};
+let propBlades = null; // the propeller hat's spinning part
 (function makeHats() {
   const M = (c, extra) => new THREE.MeshLambertMaterial(Object.assign({color: c, map: noiseTex(c % 97)}, extra || {}));
   const add = (id, ...meshes) => { const g = new THREE.Group(); g.add(...meshes); g.visible = false; babyBody.add(g); hats[id] = g; };
@@ -1075,29 +1240,124 @@ const hats = {};
   add('crown', ...crown);
   const haloMat = new THREE.MeshBasicMaterial({color: 0xfff27a});
   add('halo', box(0.6, 0.07, 0.08, haloMat, 0, 2.0, 0.27), box(0.6, 0.07, 0.08, haloMat, 0, 2.0, -0.27), box(0.08, 0.07, 0.62, haloMat, 0.27, 2.0, 0), box(0.08, 0.07, 0.62, haloMat, -0.27, 2.0, 0));
+  const black = M(0x1b1b1b), white = M(0xf7f7f7), bone = M(0xf4e3c1);
+  add('pirate', box(1.0, 0.08, 0.7, black, 0, 1.68, 0), box(0.72, 0.28, 0.5, black, 0, 1.84, 0), box(0.14, 0.14, 0.04, white, 0, 1.84, 0.26));
+  const blades = new THREE.Group(); blades.add(box(0.95, 0.04, 0.14, M(0xffd23f), 0, 0, 0), box(0.14, 0.04, 0.95, M(0xff2d55), 0, 0, 0)); blades.position.y = 1.93;
+  add('propeller', box(0.74, 0.16, 0.74, M(0x3fa9ff), 0, 1.72, 0), box(0.08, 0.14, 0.08, black, 0, 1.86, 0), blades);
+  propBlades = blades;
+  add('tophat', box(0.98, 0.06, 0.98, black, 0, 1.68, 0), box(0.6, 0.56, 0.6, black, 0, 1.98, 0), box(0.62, 0.1, 0.62, M(0xd62828), 0, 1.77, 0));
+  const hornL = box(0.13, 0.32, 0.13, bone, 0.27, 1.8, 0.05), hornR = hornL.clone(); hornL.rotation.z = -0.35; hornR.position.x = -0.27; hornR.rotation.z = 0.35;
+  add('horns', hornL, hornR);
+  add('chef', box(0.84, 0.18, 0.84, white, 0, 1.72, 0), box(0.98, 0.42, 0.98, white, 0, 2.0, 0));
+  const cup = M(0xff2d55);
+  add('headphones', box(0.92, 0.08, 0.14, black, 0, 1.7, 0), box(0.08, 0.36, 0.1, black, 0.45, 1.5, 0), box(0.08, 0.36, 0.1, black, -0.45, 1.5, 0), box(0.14, 0.32, 0.32, cup, 0.47, 1.28, 0), box(0.14, 0.32, 0.32, cup, -0.47, 1.28, 0));
+  const pink = M(0xff9aa8);
+  add('ears', box(0.16, 0.44, 0.08, babyMat, 0.2, 1.88, 0), box(0.16, 0.44, 0.08, babyMat, -0.2, 1.88, 0), box(0.08, 0.3, 0.02, pink, 0.2, 1.88, 0.05), box(0.08, 0.3, 0.02, pink, -0.2, 1.88, 0.05));
+  add('antenna', box(0.05, 0.36, 0.05, M(0x8a8f98), 0, 1.82, 0), box(0.15, 0.15, 0.15, new THREE.MeshBasicMaterial({color: 0xff2d55}), 0, 2.04, 0));
+  const wiz = M(0x3d1f9e), star = new THREE.MeshBasicMaterial({color: 0xffe14d});
+  add('wizard', box(1.02, 0.06, 1.02, wiz, 0, 1.68, 0), box(0.64, 0.26, 0.64, wiz, 0, 1.84, 0), box(0.46, 0.24, 0.46, wiz, 0, 2.08, 0), box(0.28, 0.22, 0.28, wiz, 0, 2.3, 0.03), box(0.12, 0.16, 0.12, wiz, 0, 2.48, 0.07), box(0.12, 0.12, 0.04, star, 0, 1.86, 0.33));
+  const petal = M(0xff6bd6);
+  add('flower', box(0.12, 0.12, 0.12, M(0xffd23f), 0.28, 1.72, 0.18), box(0.12, 0.1, 0.1, petal, 0.4, 1.72, 0.18), box(0.12, 0.1, 0.1, petal, 0.16, 1.72, 0.18), box(0.1, 0.1, 0.12, petal, 0.28, 1.72, 0.3), box(0.1, 0.1, 0.12, petal, 0.28, 1.72, 0.06));
+  const straw = M(0xf0d58c);
+  add('sunhat', box(1.34, 0.05, 1.34, straw, 0, 1.68, 0), box(0.72, 0.22, 0.72, straw, 0, 1.8, 0), box(0.74, 0.07, 0.74, M(0xff5a8a), 0, 1.74, 0));
+  const leather = M(0x8b5a2b);
+  const brimL = box(0.26, 0.06, 0.9, leather, 0.5, 1.73, 0), brimR = brimL.clone(); brimL.rotation.z = 0.5; brimR.position.x = -0.5; brimR.rotation.z = -0.5;
+  add('cowboy', box(0.8, 0.06, 0.9, leather, 0, 1.68, 0), brimL, brimR, box(0.62, 0.3, 0.56, leather, 0, 1.86, 0), box(0.64, 0.07, 0.58, M(0x3a2a12), 0, 1.74, 0));
+  add('helmet', box(1.02, 1.0, 1.02, new THREE.MeshLambertMaterial({color: 0xbfe9ff, transparent: true, opacity: 0.35, depthWrite: false}), 0, 1.27, 0), box(1.04, 0.12, 1.04, white, 0, 0.84, 0));
+  const party = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.62, 4), M(0x36c46a)); party.position.set(0, 1.96, 0); party.rotation.y = Math.PI / 4; party.castShadow = true;
+  add('party', party, box(0.14, 0.14, 0.14, M(0xffd23f), 0, 2.3, 0));
+})();
+// Body markings: grey pictures the baby's colour is painted over (dark = darker shade of that colour).
+const PATTERNS = {};
+(function makePatterns() {
+  const pat = (name, fn) => {
+    let s = name.length * 17; const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
+    PATTERNS[name] = pixelTex((g, n) => { for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) { const v = fn(x, y) || Math.floor(215 + rnd() * 40); g.fillStyle = `rgb(${v},${v},${v})`; g.fillRect(x, y, 1, 1); } });
+  };
+  pat('stripes', (x, y) => y % 3 === 0 ? 120 : 0);
+  pat('spots', (x, y) => [[1, 1], [2, 1], [1, 2], [5, 4], [6, 4], [5, 5], [2, 6], [3, 6]].some(([a, b]) => a === x && b === y) ? 140 : 0);
+  pat('stars', (x, y) => [[1, 1], [6, 2], [3, 4], [0, 6], [5, 6]].some(([a, b]) => a === x && b === y) ? 255 : 175);
+  pat('check', (x, y) => ((x >> 1) + (y >> 1)) % 2 ? 160 : 245);
+  pat('scales', (x, y) => (x + 2 * ((y >> 1) & 1)) % 4 === 0 || (y % 2 === 1 && (x + 2 * ((y >> 1) & 1)) % 4 === 2) ? 150 : 0); // staggered, like fish scales
 })();
 const boats = {}, flames = [];
-// Any boat = a shape (tube / raft / speed / rocket) + three colours.
+// Any boat = a shape + three colours (main, accent, dark). glow = the main colour shines a little.
 const SHOP_PAL = {tube: [0xff8c1a, 0xffffff, 0x2fa8ff], raft: [0xa0662d, 0x8a5424, 0xff2d55], speed: [0xf4f4f4, 0xff2d55, 0x333333], rocket: [0x7b3cff, 0xffc400, 0x2b2d42]};
-const BOAT_SEAT = {tube: 0.08, raft: 0.3, speed: 0.32, rocket: 0.34};
-function buildBoat(shape, pal) {
+// how high the baby sits in each shape
+const BOAT_SEAT = {tube: 0.08, raft: 0.3, speed: 0.32, rocket: 0.34, canoe: 0.22, banana: 0.5, swan: 0.08, sub: 0.75, ufo: 0.42, pirate: 0.56, shell: 0.72, dragon: 0.45, cloud: 0.5, pizza: 0.26};
+function buildBoat(shape, pal, glow) {
   const M = (c, extra) => new THREE.MeshLambertMaterial(Object.assign({color: c, map: noiseTex(c % 89 + 1)}, extra || {}));
   const [ca, cb, cc] = pal, g = new THREE.Group();
+  const A = glow ? M(ca, {emissive: new THREE.Color(ca).multiplyScalar(0.35)}) : M(ca); // main colour
+  const tilt = (m, rx, ry, rz) => { m.rotation.set(rx || 0, ry || 0, rz || 0); return m; };
   if (shape === 'tube') {
-    const a = M(ca), b = M(cb);
+    const a = A, b = M(cb);
     g.add(box(1.5, 0.38, 0.34, a, 0, 0.19, 0.58), box(1.5, 0.38, 0.34, a, 0, 0.19, -0.58),
       box(0.34, 0.38, 0.82, b, 0.58, 0.19, 0), box(0.34, 0.38, 0.82, b, -0.58, 0.19, 0), box(0.9, 0.06, 0.9, M(cc), 0, 0.04, 0));
   } else if (shape === 'raft') {
-    [-0.64, -0.32, 0, 0.32, 0.64].forEach((x, i) => g.add(box(0.3, 0.3, 2.0, M(i % 2 ? cb : ca), x, 0.15, 0)));
+    [-0.64, -0.32, 0, 0.32, 0.64].forEach((x, i) => g.add(box(0.3, 0.3, 2.0, i % 2 ? M(cb) : A, x, 0.15, 0)));
     const dk = M(cb);
     g.add(box(1.7, 0.08, 0.2, dk, 0, 0.33, 0.7), box(1.7, 0.08, 0.2, dk, 0, 0.33, -0.7), box(0.09, 1.4, 0.09, dk, 0, 1.0, -0.8), box(0.5, 0.3, 0.04, M(cc), 0.27, 1.5, -0.8));
   } else if (shape === 'speed') {
-    const a = M(ca), b = M(cb);
+    const a = A, b = M(cb);
     const nose = box(1.06, 0.5, 1.06, a, 0, 0.25, 1.0); nose.rotation.y = Math.PI / 4;
     const glass = box(1.2, 0.42, 0.06, new THREE.MeshLambertMaterial({color: 0x9fe6ff, transparent: true, opacity: 0.6}), 0, 0.72, 0.72); glass.rotation.x = -0.45;
     g.add(box(1.5, 0.5, 2.0, a, 0, 0.25, 0), nose, box(1.52, 0.1, 2.02, b, 0, 0.38, 0), glass, box(0.5, 0.35, 0.3, M(cc), 0, 0.3, -1.15));
+  } else if (shape === 'canoe') { // long and thin with pointy ends and a paddle
+    const b = M(cb), c = M(cc);
+    g.add(box(0.9, 0.26, 2.4, A, 0, 0.13, 0), box(0.12, 0.3, 2.4, b, 0.45, 0.33, 0), box(0.12, 0.3, 2.4, b, -0.45, 0.33, 0),
+      tilt(box(0.66, 0.36, 0.66, A, 0, 0.26, 1.25), 0, Math.PI / 4), tilt(box(0.66, 0.36, 0.66, A, 0, 0.26, -1.25), 0, Math.PI / 4),
+      tilt(box(2.0, 0.05, 0.1, c, 0, 0.6, 0.5), 0, 0.35), tilt(box(0.42, 0.05, 0.22, c, 0.94, 0.6, 0.83), 0, 0.35), tilt(box(0.42, 0.05, 0.22, c, -0.94, 0.6, 0.17), 0, 0.35));
+  } else if (shape === 'banana') { // banana boat: the nose curls up, with handles to hold
+    const b = M(cb), c = M(cc);
+    g.add(box(1.0, 0.5, 2.2, A, 0, 0.25, 0), tilt(box(0.8, 0.45, 0.7, A, 0, 0.5, 1.35), -0.45), tilt(box(0.4, 0.32, 0.32, c, 0, 0.82, 1.68), -0.8),
+      box(0.6, 0.4, 0.3, A, 0, 0.3, -1.2), box(0.25, 0.25, 0.2, c, 0, 0.3, -1.42),
+      box(0.08, 0.3, 0.08, b, 0.5, 0.65, 0.55), box(0.08, 0.3, 0.08, b, -0.5, 0.65, 0.55), box(1.08, 0.08, 0.08, b, 0, 0.82, 0.55));
+  } else if (shape === 'swan') { // ring float with a long neck and a beak
+    const b = M(cb), eye = M(0x1b1b1b);
+    g.add(box(1.5, 0.4, 0.34, A, 0, 0.2, 0.58), box(1.5, 0.4, 0.34, A, 0, 0.2, -0.58), box(0.34, 0.4, 0.82, A, 0.58, 0.2, 0), box(0.34, 0.4, 0.82, A, -0.58, 0.2, 0),
+      box(0.9, 0.06, 0.9, M(0x7fdcff), 0, 0.04, 0), tilt(box(0.3, 1.1, 0.3, A, 0, 0.8, 0.85), 0.15), box(0.42, 0.36, 0.52, A, 0, 1.4, 0.98),
+      box(0.2, 0.14, 0.3, b, 0, 1.36, 1.35), box(0.44, 0.08, 0.08, eye, 0, 1.47, 1.1), tilt(box(0.6, 0.4, 0.3, A, 0, 0.5, -0.78), 0.5));
+  } else if (shape === 'sub') { // little submarine: you ride on top, in front of the tower
+    const b = new THREE.MeshBasicMaterial({color: cb}), c = M(cc);
+    g.add(box(1.3, 0.75, 2.3, A, 0, 0.38, 0), box(1.0, 0.6, 0.4, A, 0, 0.38, 1.33), box(0.8, 0.5, 0.3, A, 0, 0.38, -1.27), box(0.6, 0.5, 0.6, A, 0, 1.0, -0.72),
+      box(0.08, 0.5, 0.08, c, 0, 1.5, -0.72), box(0.08, 0.08, 0.28, c, 0, 1.72, -0.62), box(0.7, 0.1, 0.1, c, 0, 0.38, -1.48), box(0.1, 0.7, 0.1, c, 0, 0.38, -1.48));
+    for (const z of [0.55, -0.15]) g.add(box(0.06, 0.24, 0.24, b, 0.66, 0.45, z), box(0.06, 0.24, 0.24, b, -0.66, 0.45, z));
+  } else if (shape === 'ufo') { // flying saucer with a glass dome and blinking lights
+    const lights = new THREE.MeshBasicMaterial({color: cb});
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.05, 0.34, 16), A); disc.position.y = 0.2; disc.castShadow = true;
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.25, 0.14, 16), M(cc)); ring.position.y = 0.43;
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.85, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({color: 0xbfe9ff, transparent: true, opacity: 0.3, depthWrite: false}));
+    dome.position.y = 0.45; dome.scale.y = 2.1;
+    g.add(disc, ring, dome);
+    for (let k = 0; k < 8; k++) { const a = k / 8 * Math.PI * 2; g.add(box(0.16, 0.12, 0.16, lights, Math.sin(a) * 1.3, 0.2, Math.cos(a) * 1.3)); }
+  } else if (shape === 'pirate') { // ship with a cabin at the back and a sail at the front (so it never blocks your view)
+    const b = M(cb), c = M(cc);
+    g.add(box(1.5, 0.55, 2.2, A, 0, 0.28, 0), tilt(box(1.06, 0.52, 1.06, A, 0, 0.28, 1.05), 0, Math.PI / 4), box(1.56, 0.1, 2.24, c, 0, 0.6, 0),
+      box(1.5, 0.45, 0.5, A, 0, 0.82, -0.95), box(0.1, 2.0, 0.1, c, 0, 1.4, 1.0), box(1.0, 0.75, 0.05, b, 0, 1.65, 1.02), box(0.4, 0.22, 0.03, c, 0.2, 2.3, 1.0));
+  } else if (shape === 'shell') { // turtle shell: sit on top of the dome
+    const b = M(cb), c = M(cc);
+    g.add(box(1.5, 0.22, 1.8, c, 0, 0.11, 0), box(1.4, 0.26, 1.65, A, 0, 0.34, 0), box(1.05, 0.22, 1.25, A, 0, 0.58, 0),
+      box(0.46, 0.36, 0.46, b, 0, 0.3, 1.05), box(0.08, 0.08, 0.04, c, 0.12, 0.38, 1.28), box(0.08, 0.08, 0.04, c, -0.12, 0.38, 1.28));
+    for (const [x, z] of [[0.7, 0.7], [-0.7, 0.7], [0.7, -0.7], [-0.7, -0.7]]) g.add(box(0.3, 0.2, 0.3, b, x, 0.1, z));
+    for (const [x, z] of [[0.3, 0.3], [-0.3, 0.3], [0.3, -0.3], [-0.3, -0.3], [0, 0]]) g.add(box(0.32, 0.05, 0.32, b, x, 0.7, z));
+  } else if (shape === 'dragon') { // long boat with a dragon head, wings and a tail
+    const b = M(cb), eye = new THREE.MeshBasicMaterial({color: 0xfff27a});
+    g.add(box(1.3, 0.45, 2.2, A, 0, 0.22, 0), box(1.34, 0.08, 2.24, b, 0, 0.47, 0), tilt(box(0.36, 0.9, 0.36, A, 0, 0.75, 1.2), 0.35), box(0.5, 0.42, 0.72, A, 0, 1.22, 1.48),
+      tilt(box(0.08, 0.3, 0.08, b, 0.15, 1.52, 1.3), -0.5), tilt(box(0.08, 0.3, 0.08, b, -0.15, 1.52, 1.3), -0.5), box(0.52, 0.08, 0.08, eye, 0, 1.3, 1.7),
+      tilt(box(0.25, 0.25, 0.8, A, 0, 0.42, -1.42), -0.4), tilt(box(0.9, 0.06, 0.7, b, 0.95, 0.62, -0.2), 0, 0, -0.3), tilt(box(0.9, 0.06, 0.7, b, -0.95, 0.62, -0.2), 0, 0, 0.3));
+  } else if (shape === 'cloud') { // a fluffy cloud with little sparkles
+    const b = new THREE.MeshBasicMaterial({color: cb});
+    g.add(box(1.6, 0.5, 1.8, A, 0, 0.25, 0));
+    for (const [x, y, z, w] of [[0.55, 0.45, 0.65, 0.8], [-0.6, 0.45, 0.55, 0.75], [0.6, 0.42, -0.6, 0.7], [-0.55, 0.42, -0.7, 0.8], [0, 0.4, 1.0, 0.7], [0, 0.4, -1.05, 0.7]]) g.add(box(w, 0.4, w, A, x, y, z));
+    for (const [x, z] of [[0.95, 0.2], [-0.95, -0.3], [0.3, 1.25], [-0.35, -1.3]]) g.add(box(0.14, 0.14, 0.14, b, x, 0.7, z));
+  } else if (shape === 'pizza') { // a slice of pizza: point at the front, crust at the back
+    const slice = new THREE.Mesh(new THREE.CylinderGeometry(1.35, 1.35, 0.24, 3), A); slice.position.set(0, 0.12, 0.2); slice.castShadow = true;
+    const pep = M(cb);
+    g.add(slice, box(2.3, 0.32, 0.34, M(cc), 0, 0.2, -0.5));
+    for (const [x, z] of [[0, 0.7], [0.35, 0.05], [-0.38, 0.1], [0.05, -0.2]]) g.add(box(0.3, 0.06, 0.3, pep, x, 0.26, z));
   } else {
-    const a = M(ca), b = M(cb, {emissive: 0x332200}), dk = M(cc);
+    const a = A, b = M(cb, {emissive: 0x332200}), dk = M(cc);
     const rn = box(1.06, 0.5, 1.06, a, 0, 0.25, 1.05); rn.rotation.y = Math.PI / 4;
     g.add(box(1.5, 0.5, 2.1, a, 0, 0.25, 0), rn, box(1.52, 0.1, 2.12, b, 0, 0.42, 0), box(0.22, 0.6, 0.6, b, 0.85, 0.45, -0.7), box(0.22, 0.6, 0.6, b, -0.85, 0.45, -0.7));
     for (const x of [0.45, -0.45]) {
@@ -1111,7 +1371,7 @@ function buildBoat(shape, pal) {
 }
 function boatShape(b) { return b.shape || b.id; }
 function getBoatModel(b) {
-  if (!boats[b.id]) { const g = buildBoat(boatShape(b), b.pal || SHOP_PAL[boatShape(b)]); g.visible = false; player.add(g); boats[b.id] = g; }
+  if (!boats[b.id]) { const g = buildBoat(boatShape(b), b.pal || SHOP_PAL[boatShape(b)], b.glow); g.visible = false; player.add(g); boats[b.id] = g; }
   return boats[b.id];
 }
 function applyBoat() {
@@ -1123,6 +1383,8 @@ scene.add(player);
 function applySkin() {
   const s = curSkin();
   if (s.color !== 'rainbow') babyMat.color.set(s.color);
+  babyMat.map = PATTERNS[s.pattern] || bodyNoise; babyMat.needsUpdate = true;
+  if (s.glow && s.color !== 'rainbow') babyMat.emissive.set(s.color).multiplyScalar(0.35); else babyMat.emissive.set(0);
   for (const id in hats) hats[id].visible = id === s.hat;
 }
 applySkin();
@@ -1133,13 +1395,13 @@ const aimMark = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.4, 28), new THREE.M
 aimMark.rotation.x = -Math.PI / 2; aimMark.visible = false;
 scene.add(aimMark);
 function updateAim() {
-  if (!curSkin().aim || mode !== 'play' || !p.air) { aimMark.visible = false; return; }
+  if (!hasPerk('aim') || mode !== 'play' || !p.air) { aimMark.visible = false; return; }
   const q = Object.assign({}, p);
   for (let i = 0; i < 900; i++) {
     const ev = step(q, level, steerValue(), P, false);
     if (ev === 'land') { aimMark.material.color.set(0x34f5c5); aimMark.position.set(q.x, q.y + 0.1, q.z); aimMark.visible = true; return; }
     if (q.air && q.y <= WATER) {
-      const ok = inPool(level.pool, q.x, q.z, curSkin().edge || 0);
+      const ok = inPool(level.pool, q.x, q.z, perkMax('edge'));
       aimMark.material.color.set(ok ? 0x34f5c5 : 0xff4d4d);
       aimMark.position.set(q.x, ok ? 0.47 : 0.06, q.z); aimMark.visible = true; return;
     }
@@ -1154,6 +1416,14 @@ scene.add(shadow);
 const STRIPE_COLORS = ['#ff5a8a', '#3fa9ff', '#ffd23f', '#36c46a', '#9b5cff', '#ff8c1a', '#22d3ee', '#f43f5e', '#a3e635', '#ffffff', '#ff4dd8'];
 function randStripe(prev) { let c; do { c = STRIPE_COLORS[Math.floor(Math.random() * STRIPE_COLORS.length)]; } while (c === prev); return c; }
 let levelGroup = null, level = null, levelIdx = 0, camBlockers = [];
+const THEMES = [
+  {name: 'Sunny', sky: 0x8fd3ff, ground: 0x6ccf5f, leaf: 0x2f9e44, trunk: 0x8b5a2b, rock: 0x9aa3b3},
+  {name: 'Sunset', sky: 0xffb38a, ground: 0x7bbf5a, leaf: 0x3d8b37, trunk: 0x7a4a22, rock: 0xb08a7a},
+  {name: 'Beach', sky: 0x9fe3ff, ground: 0xf2d891, leaf: 0x34a853, trunk: 0xa0662d, rock: 0xd9c08a},
+  {name: 'Autumn', sky: 0xa8d8f0, ground: 0x9cbf4f, leaf: 0xe07a1f, trunk: 0x6b4423, rock: 0x8a8f98},
+  {name: 'Snowy', sky: 0xd6ecff, ground: 0xf4f8ff, leaf: 0x1f6f4a, trunk: 0x5a3d2b, rock: 0xb8c4d6},
+  {name: 'Candy', sky: 0xffd6f0, ground: 0xa8f0c8, leaf: 0xff6bd6, trunk: 0xfff3c4, rock: 0xc9a0ff},
+];
 
 function primMesh(pr, mat, h, topY, m) {
   let geo;
@@ -1245,6 +1515,7 @@ function loadLevel(i) {
   levelIdx = i;
   if (levelGroup) { scene.remove(levelGroup); levelGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material.dispose && !o.userData.keepMat) o.material.dispose(); }); }
   level = getLevel(i + 1, save.skill);
+  lastTry = null; rec = []; ghostOff(); // ghosts belong to one level
   levelGroup = new THREE.Group(); camBlockers = [];
   const pillarMat = new THREE.MeshLambertMaterial({color: 0xf2f2f2});
   const pillarSpots = [];
@@ -1270,10 +1541,13 @@ function loadLevel(i) {
   const mtx = new THREE.Matrix4();
   pillarSpots.forEach((s, k) => { const h = s.y - 0.45; mtx.makeScale(1, h, 1); mtx.setPosition(s.x, h / 2, s.z); pil.setMatrixAt(k, mtx); });
   pil.castShadow = true; levelGroup.add(pil); camBlockers.push(pil);
-  // trees and clouds around the track
+  // every level gets a look of its own (level 1 is always the sunny one)
+  const th = THEMES[level.n === 1 ? 0 : Math.floor(mulberry32(level.n * 977 + 3)() * THEMES.length)];
+  scene.background.setHex(th.sky); scene.fog.color.setHex(th.sky); ground.material.color.setHex(th.ground); hemi.groundColor.setHex(th.ground).multiplyScalar(0.75);
+  // trees, rocks and clouds around the track
   const all = level.runs.flatMap(r => r.samples);
-  const trees = 220, trunkI = new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, 3, 0.8), new THREE.MeshLambertMaterial({color: 0x8b5a2b}), trees);
-  const leafI = new THREE.InstancedMesh(new THREE.ConeGeometry(2.4, 5, 6), new THREE.MeshLambertMaterial({color: 0x2f9e44}), trees);
+  const trees = 220, trunkI = new THREE.InstancedMesh(new THREE.BoxGeometry(0.8, 3, 0.8), new THREE.MeshLambertMaterial({color: th.trunk}), trees);
+  const leafI = new THREE.InstancedMesh(new THREE.ConeGeometry(2.4, 5, 6), new THREE.MeshLambertMaterial({color: th.leaf}), trees);
   for (let k = 0; k < trees; k++) {
     const s = all[Math.floor(Math.random() * all.length)], side = Math.random() < 0.5 ? -1 : 1, off = 14 + Math.random() * 60;
     let x = s.x + s.rx * side * off, z = s.z + s.rz * side * off;
@@ -1282,6 +1556,14 @@ function loadLevel(i) {
     mtx.makeTranslation(x, 5, z); leafI.setMatrixAt(k, mtx);
   }
   leafI.castShadow = true; levelGroup.add(trunkI, leafI);
+  const rocks = 70, rockI = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({color: th.rock}), rocks);
+  for (let k = 0; k < rocks; k++) {
+    const s = all[Math.floor(Math.random() * all.length)], side = Math.random() < 0.5 ? -1 : 1, off = 12 + Math.random() * 70, sz = 0.8 + Math.random() * 2.2;
+    let x = s.x + s.rx * side * off, z = s.z + s.rz * side * off;
+    if (Math.hypot(x - level.pool.cx, z - level.pool.cz) < 20) x -= 40;
+    mtx.makeRotationY(Math.random() * 3); mtx.scale(new THREE.Vector3(sz * 1.3, sz * 0.7, sz)); mtx.setPosition(x, sz * 0.3, z); rockI.setMatrixAt(k, mtx);
+  }
+  levelGroup.add(rockI);
   const cloudMat = new THREE.MeshLambertMaterial({color: 0xffffff});
   for (let k = 0; k < 40; k++) {
     const s = all[Math.floor(Math.random() * all.length)], g = new THREE.Group();
@@ -1301,6 +1583,21 @@ function loadLevel(i) {
     isl.position.set(h.x || 0, 0.3, h.z || 0); pg.add(isl);
     const palm = new THREE.Mesh(new THREE.ConeGeometry(1.6, 3.5, 7), new THREE.MeshLambertMaterial({color: 0x2f9e44}));
     palm.position.set(h.x || 0, 2.5, h.z || 0); pg.add(palm);
+  }
+  // beach umbrellas around the edge and rubber rings floating in the water (just for looks)
+  const ext = Math.max(...pool.prims.map(pr => Math.hypot(pr.x || 0, pr.z || 0) + (pr.r ? pr.r * (pr.t === 'tri' ? 1.6 : 1) : Math.hypot(pr.w, pr.d) / 2))) + 0.9;
+  const poleMat = new THREE.MeshLambertMaterial({color: 0xf4f1ea}), ringGeo = new THREE.TorusGeometry(0.6, 0.22, 6, 12);
+  for (let k = 0, n = 4 + Math.floor(Math.random() * 4); k < n; k++) {
+    const a = Math.random() * Math.PI * 2, rr = ext + 2.5 + Math.random() * 3, u = new THREE.Group();
+    const pole = new THREE.Mesh(new THREE.BoxGeometry(0.15, 3.2, 0.15), poleMat); pole.position.y = 1.6;
+    const top = new THREE.Mesh(new THREE.ConeGeometry(2, 0.9, 8), new THREE.MeshLambertMaterial({color: new THREE.Color(randStripe(null))})); top.position.y = 3.3; top.castShadow = true;
+    u.add(pole, top); u.position.set(Math.sin(a) * rr, 0, Math.cos(a) * rr); pg.add(u);
+  }
+  for (let k = 0, tries = 0; k < 4 && tries < 40; tries++) {
+    const lx = (Math.random() * 2 - 1) * ext, lz = (Math.random() * 2 - 1) * ext;
+    if (!pool.prims.some(pr => inPrim(pr, lx, lz, -1.2)) || (pool.holes && pool.holes.some(h => Math.hypot(lx - (h.x || 0), lz - (h.z || 0)) < h.r + 1.2))) continue;
+    const ring = new THREE.Mesh(ringGeo, new THREE.MeshLambertMaterial({color: new THREE.Color(randStripe(null))}));
+    ring.rotation.x = Math.PI / 2; ring.position.set(lx, 0.47, lz); pg.add(ring); k++;
   }
   pg.position.set(pool.cx, 0, pool.cz); pg.rotation.y = pool.yaw;
   levelGroup.add(pg);
@@ -1338,11 +1635,11 @@ function physTick() {
   const before = p.air ? null : {run: p.run, s: p.s};
   if (jumpQueued) {
     jumpQueued = false;
-    const j = jump(p, level, curBoat().airJump, steerValue());
+    const j = jump(p, level, hasPerk('airJump'), steerValue());
     if (j) { jumpFx(); j === 'air' ? Sfx.airJump() : Sfx.jump(); if (before) hopFrom = before; }
   }
   const ev = step(p, level, steerValue(), P, false);
-  trackSafeSpot();
+  trackSafeSpot(); recordTick();
   if (ev === 'launch') { Sfx.launch(); hopFrom = null; }
   else if (ev === 'falloff') { Sfx.fall(); hopFrom = before; }
   else if (ev === 'loop') Sfx.loop();
@@ -1354,9 +1651,8 @@ function physTick() {
     hopFrom = null;
   }
   if (p.air && p.y <= WATER) {
-    const k = curSkin();
-    if (inPool(level.pool, p.x, p.z, k.edge || 0)) win();
-    else if (k.bounce && !p.bounced) { p.bounced = true; p.y = WATER + 0.01; p.vy = 13; toast('Boing! One more try'); Sfx.boing(); }
+    if (inPool(level.pool, p.x, p.z, perkMax('edge'))) win();
+    else if (hasPerk('bounce') && !p.bounced) { p.bounced = true; p.y = WATER + 0.01; p.vy = 13; toast('Boing! One more try'); Sfx.boing(); }
     else die();
   }
 }
@@ -1387,15 +1683,17 @@ function win() {
   coinText('winCoinsTotal');
   $('winCoins').textContent = '+' + reward + ' coins' + (shortcuts ? ' (' + shortcuts + ' shortcut' + (shortcuts > 1 ? 's' : '') + '!)' : '');
   $('winSkill').textContent = 'Skill ' + pct(before) + ' → ' + pct(save.skill);
-  const gain = xpForWin(level), oldXP = save.xp;
+  const gain = Math.round(xpForWin(level) * (1 + (curSkin().xp || 0) + (curBoat().xp || 0))), oldXP = save.xp;
   save.xp += gain; persist();
   $('winFlags').innerHTML = flagsHTML(levelDifficulty(level)) + ' &nbsp;<b>+' + gain + ' XP</b>';
   startPassAnim(oldXP, save.xp);
+  keepTry(false); // restart after a win and you can race your winning ride
 }
 function die() {
   mode = 'dead'; endTimer = 0.8; Sfx.splat();
   updateSkill(false); persist();
   p.y = Math.max(p.y, 0);
+  recTick = 0; recordTick(); keepTry(true); // the spot you splatted is the last frame of the ghost
   $('loseText').textContent = inPool(level.pool, p.x, p.z, 1.6) ? 'So close! You hit the edge of the pool.' : 'You missed the pool.';
 }
 
@@ -1465,6 +1763,7 @@ function updateVisuals(dt) {
   if (mode === 'play') Sfx.slide(p.air ? 'air' : 'slide', p.speed || 0); else Sfx.slide('off', 0);
   if (skin.color === 'rainbow') { babyMat.color.setHSL((tNow * 0.25) % 1, 0.85, 0.55); hats.halo.children[0].material.color.setHSL((tNow * 0.25 + 0.5) % 1, 0.9, 0.7); }
   hats.halo.rotation.y = tNow * 2;
+  propBlades.rotation.y = tNow * 12;
 
   if (mode === 'menu') {
     const a = tNow * 0.3;
@@ -1510,6 +1809,7 @@ function updateVisuals(dt) {
   cam.lookAt(camLook);
   sun.position.set(p.x - 40, p.y + 80, p.z - 20); sun.target.position.set(p.x, p.y - 10, p.z);
   updateAim();
+  updateGhost(dt);
   updateHud();
 }
 
@@ -1522,9 +1822,9 @@ function showControls(on) {
 }
 function updateHud() {
   $('hudLevel').textContent = 'Level ' + (levelIdx + 1);
-  $('hudCoins').textContent = '● ' + save.coins;
+  $('hudCoins').textContent = '● ' + save.coins.toLocaleString();
 }
-function coinText(el) { $(el).textContent = '● ' + save.coins + ' coins'; }
+function coinText(el) { $(el).textContent = '● ' + save.coins.toLocaleString() + ' coins'; }
 
 function openMenu() {
   mode = 'menu'; showControls(false); coinText('menuCoins');
@@ -1591,8 +1891,13 @@ function openReady(i) {
     }, 40);
   }, 40);
 }
-function go() { mode = 'play'; acc = 0; jumpQueued = false; show(null); showControls(true); }
-function retry() { resetPlayer(); go(); }
+function go() { mode = 'play'; acc = 0; jumpQueued = false; show(null); showControls(true); rec = []; recTick = 0; ghostOff(); }
+// Start the level again. Restarting in the middle of a try keeps that try as the ghost too.
+function retry() {
+  if (mode === 'play') keepTry(false);
+  resetPlayer(); go(); startGhost();
+  if (ghost && !retry.told) { retry.told = true; toast('The ghost shows your last try'); }
+}
 
 function toast(msg) { const t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 1400); }
 
@@ -1603,7 +1908,7 @@ function openShop() {
     const owned = save.ownedBoats.includes(b.id), on = save.boat === b.id;
     const t = document.createElement('div');
     t.className = 'tile' + (on ? ' sel' : '');
-    t.innerHTML = '<div class="swatch" style="background:' + b.color + ';display:flex;align-items:center;justify-content:center;font-size:24px">🚤</div>' + b.name + '<small>' + (on ? 'Riding' : owned ? 'Owned' : '● ' + b.price) + '</small><small style="color:#2a8a4f">' + b.perk + '</small>';
+    t.innerHTML = '<img class="icon" alt="" src="' + packIconURL(b, '#dff3ff') + '">' + b.name + '<small>' + (on ? 'Riding' : owned ? 'Owned' : '● ' + b.price.toLocaleString()) + '</small><small style="color:#2a8a4f">' + b.perk + '</small>';
     t.onclick = () => {
       if (!owned) {
         if (save.coins < b.price) { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); toast('Not enough coins'); Sfx.nope(); return; }
@@ -1618,8 +1923,8 @@ function openShop() {
     const owned = save.owned.includes(s.id), on = save.skin === s.id;
     const t = document.createElement('div');
     t.className = 'tile' + (on ? ' sel' : '');
-    const bg = s.color === 'rainbow' ? 'conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)' : s.color;
-    t.innerHTML = '<div class="swatch" style="background:' + bg + '"></div>' + s.name + '<small>' + (on ? 'Wearing' : owned ? 'Owned' : '● ' + s.price) + '</small><small style="color:#2a8a4f">' + s.perk + '</small>';
+    const pic = s.color === 'rainbow' ? '<div class="swatch" style="background:conic-gradient(red,orange,yellow,lime,cyan,blue,magenta,red)"></div>' : '<img class="icon" alt="" src="' + packIconURL(s, '#dff3ff') + '">';
+    t.innerHTML = pic + s.name + '<small>' + (on ? 'Wearing' : owned ? 'Owned' : '● ' + s.price.toLocaleString()) + '</small><small style="color:#2a8a4f">' + s.perk + '</small>';
     t.onclick = () => {
       if (!owned) {
         if (save.coins < s.price) { t.classList.remove('shake'); void t.offsetWidth; t.classList.add('shake'); toast('Not enough coins'); Sfx.nope(); return; }
@@ -1638,13 +1943,38 @@ function openShop() {
     const badge = '<span class="rar' + (r.id === 'secret' ? ' secretglow' : '') + '" style="background:' + (r.id === 'secret' ? '' : r.color) + '">' + r.name + '</span>';
     t.innerHTML = owned
       ? '<img src="' + packIconURL(it, r.id === 'secret' ? '#333' : r.color) + '" style="width:46px;height:46px;image-rendering:pixelated;border-radius:8px"><br>' + it.name + '<br>' + badge + '<small style="color:#2a8a4f">' + it.perk + '</small><small>' + (on ? (it.kind === 'boat' ? 'Riding' : 'Wearing') : 'Tap to use') + '</small>'
-      : '<div style="font-size:30px">❔</div>' + (r.id === 'secret' ? 'Secret ???' : '???') + '<br>' + badge + '<small>' + (r.id === 'secret' ? '1% from Exotic packs' : 'Find it in packs') + '</small>';
+      : '<div style="font-size:30px">❔</div>' + (r.id === 'secret' ? 'Secret ???' : '???') + '<br>' + badge + '<small>' + (r.id === 'secret' ? 'Secret or Exotic packs' : 'Find it in packs') + '</small>';
     if (owned) t.onclick = () => { if (it.kind === 'boat') { save.boat = it.id; applyBoat(); } else { save.skin = it.id; applySkin(); } persist(); openShop(); };
     grid.appendChild(t);
   };
   $('packBoatGrid').innerHTML = ''; $('packSkinGrid').innerHTML = '';
-  PACK_ITEMS.filter(it => it.kind === 'boat').forEach(it => packTile(it, $('packBoatGrid')));
-  PACK_ITEMS.filter(it => it.kind === 'skin').forEach(it => packTile(it, $('packSkinGrid')));
+  for (const [kind, grid, count] of [['boat', 'packBoatGrid', 'packBoatCount'], ['skin', 'packSkinGrid', 'packSkinCount']]) {
+    const items = PACK_ITEMS.filter(it => it.kind === kind);
+    items.forEach(it => packTile(it, $(grid)));
+    $(count).textContent = items.filter(ownsItem).length + ' / ' + items.length + ' found';
+  }
+  // packs for sale: first tap arms the button, second tap buys (so you can't spend thousands by accident)
+  const ps = $('packShop'); ps.innerHTML = '';
+  PACKS.forEach(pk => {
+    const row = document.createElement('div'); row.className = 'packrow'; row.style.borderColor = pk.id === 'secret' ? '#5a189a' : pk.color;
+    row.innerHTML = '<span class="mini' + (pk.id === 'secret' ? ' secretglow' : '') + '" style="background:' + (pk.id === 'secret' ? '' : pk.color) + '"></span><div><b>' + pk.name + '</b><small>' +
+      Object.entries(pk.odds).map(([r, v]) => RAR[r].name + ' ' + v + '%').join(' · ') + '</small></div>';
+    const b = document.createElement('button'); b.className = 'buy'; b.textContent = '● ' + pk.price.toLocaleString();
+    b.onclick = () => {
+      if (save.coins < pk.price) { row.classList.remove('shake'); void row.offsetWidth; row.classList.add('shake'); toast('Not enough coins: you need ' + (pk.price - save.coins).toLocaleString() + ' more'); Sfx.nope(); return; }
+      if (!b.classList.contains('armed')) {
+        b.classList.add('armed'); b.textContent = 'Tap again to buy';
+        clearTimeout(b.h); b.h = setTimeout(() => { b.classList.remove('armed'); b.textContent = '● ' + pk.price.toLocaleString(); }, 3000);
+        return;
+      }
+      clearTimeout(b.h);
+      save.coins -= pk.price;
+      const res = openPack(pk, true); // the prize is saved right away, even if you close the game during the animation
+      coinText('shopCoins');
+      playPackOpening(pk, res, () => showPackReveal(pk, res, openShop));
+    };
+    row.appendChild(b); ps.appendChild(row);
+  });
   const list = $('upgList'); list.innerHTML = '';
   UPGRADES.forEach(u => {
     const lv = save.upg[u.id], max = lv >= UPG_COST.length, cost = UPG_COST[lv];
@@ -1758,6 +2088,7 @@ function cpTotal(k) { return 100 * k + 5 * k * (k + 1); }  // total XP to reach 
 function cpIndex(xp) { let k = 0; while (cpTotal(k + 1) <= xp) k++; return k; }
 function xpForWin(L) { return 20 + 2 * L.n + 4 * levelDifficulty(L); }
 function cpReward(k) {
+  if (k % 50 === 0) return {type: 'pack', pack: PACKS[6]}; // every 50th checkpoint: the Secret Pack
   if (k % 2 === 1) return {type: 'revive', count: 2 + Math.floor(k / 8)};
   const m = k / 2, tier = Math.min(5, Math.floor(m / 3) + (k % 10 === 0 ? 1 : 0));
   return {type: 'pack', pack: PACKS[tier]};
@@ -1768,13 +2099,13 @@ function rollRarity(odds) {
   return Object.keys(odds)[0];
 }
 function ownsItem(it) { return it.kind === 'boat' ? save.ownedBoats.includes(it.id) : save.owned.includes(it.id); }
-function openPack(pack) {
+function openPack(pack, bought) {
   const rar = rollRarity(pack.odds), pool = PACK_ITEMS.filter(it => it.rarity === rar);
   const item = pool[Math.floor(Math.random() * pool.length)];
   let dupe = 0;
   if (ownsItem(item)) { dupe = RAR[rar].dupe; save.coins += dupe; }
   else (item.kind === 'boat' ? save.ownedBoats : save.owned).push(item.id);
-  const bonus = 10 * (PACKS.indexOf(pack) + 1);
+  const bonus = bought ? 0 : 10 * (PACKS.indexOf(pack) + 1); // checkpoint packs come with a few bonus coins
   save.coins += bonus; persist();
   return {item, rar, dupe, bonus};
 }
@@ -1835,15 +2166,51 @@ function xpLine(xp) {
 
 // Pack reveal popup
 let packOnClose = null, packItem = null;
+// Little pixel pictures of boats and babies for the shop and pack reveals (cached: drawing them is slow-ish).
+const HAT_ICON = {bow: '#ff2d55', leaf: '#2f9e44', cap: '#6a3df0', goggles: '#1f78c4', bubble: '#ff8ad8', visor: '#34f5c5', crown: '#ffc400', halo: '#fff27a',
+  pirate: '#1b1b1b', propeller: '#3fa9ff', tophat: '#1b1b1b', horns: '#f4e3c1', chef: '#ffffff', headphones: '#ff2d55', ears: null, antenna: '#ff2d55',
+  wizard: '#3d1f9e', flower: '#ff6bd6', sunhat: '#f0d58c', cowboy: '#8b5a2b', helmet: '#bfe9ff', party: '#36c46a'};
+const ICON_CACHE = {};
+function drawBoatIcon(g, shape, pal) {
+  const hex = v => '#' + v.toString(16).padStart(6, '0'), [a, b, c] = pal.map(hex);
+  const R = (col, x, y, w, h) => { g.fillStyle = col; g.fillRect(x, y, w, h); };
+  const baby = (y) => { R('#ffd23f', 10, y + 5, 5, 3); R('#ffe3c9', 10, y, 5, 5); R('#222', 11, y + 2, 1, 1); R('#222', 13, y + 2, 1, 1); };
+  if (shape === 'sub') { baby(3); R('#222', 2, 11, 20, 9); R(a, 3, 12, 18, 7); R(a, 5, 8, 5, 4); R(c, 7, 4, 1, 4); R(c, 7, 4, 3, 1); R(b, 12, 14, 2, 2); R(b, 16, 14, 2, 2); return; }
+  if (shape === 'shell') { baby(3); R('#222', 3, 11, 18, 8); R(a, 4, 12, 16, 6); R(b, 7, 13, 3, 2); R(b, 12, 13, 3, 2); R(b, 9, 15, 3, 2); R(b, 20, 14, 3, 3); R(b, 5, 18, 2, 2); R(b, 16, 18, 2, 2); return; }
+  baby(6);
+  if (shape === 'tube' || shape === 'swan') { R('#222', 3, 13, 18, 6); R(a, 4, 14, 16, 4); if (shape === 'tube') { R(b, 7, 14, 2, 4); R(b, 15, 14, 2, 4); } else { R(a, 18, 5, 3, 10); R(a, 18, 4, 4, 3); R(b, 22, 5, 2, 2); R('#222', 20, 5, 1, 1); } }
+  else if (shape === 'raft') { for (let i = 0; i < 6; i++) R(i % 2 ? b : a, 3 + i * 3, 14, 3, 5); R(b, 19, 3, 1, 11); R(c, 20, 3, 3, 3); }
+  else if (shape === 'speed' || shape === 'rocket') { R('#222', 2, 13, 19, 6); R(a, 3, 14, 17, 4); R(a, 20, 15, 2, 2); R(b, 3, 15, 17, 1); R('#9fe6ff', 15, 11, 3, 3); if (shape === 'rocket') { R('#ffa31a', 0, 14, 3, 3); R('#fff27a', 1, 15, 2, 1); R(b, 4, 11, 3, 3); } }
+  else if (shape === 'canoe') { R('#222', 1, 14, 22, 5); R(a, 2, 15, 20, 3); R(b, 2, 15, 20, 1); R(c, 5, 10, 14, 1); R(c, 4, 9, 3, 3); }
+  else if (shape === 'banana') { R('#222', 2, 13, 18, 6); R(a, 3, 14, 16, 4); R(a, 18, 11, 3, 5); R(a, 20, 9, 2, 3); R(c, 21, 8, 2, 2); R(b, 17, 10, 1, 4); }
+  else if (shape === 'ufo') { R('rgba(191,233,255,.6)', 7, 4, 11, 10); R('#222', 1, 14, 22, 5); R(a, 2, 15, 20, 3); R(c, 5, 13, 14, 2); for (let x = 4; x < 21; x += 4) R(b, x, 16, 2, 1); }
+  else if (shape === 'pirate') { R('#222', 2, 14, 20, 6); R(a, 3, 15, 18, 4); R(c, 3, 14, 18, 1); R(c, 19, 2, 1, 12); R(b, 16, 4, 7, 7); R(c, 18, 6, 2, 2); }
+  else if (shape === 'dragon') { R('#222', 2, 14, 18, 5); R(a, 3, 15, 16, 3); R(b, 3, 14, 16, 1); R(a, 18, 7, 3, 8); R(a, 18, 5, 5, 3); R('#fff27a', 21, 6, 1, 1); R(b, 19, 3, 1, 2); R(b, 3, 10, 6, 3); R(a, 0, 14, 3, 2); }
+  else if (shape === 'cloud') { R(a, 2, 13, 20, 6); R(a, 4, 10, 7, 4); R(a, 13, 10, 7, 4); R(b, 3, 18, 2, 1); R(b, 18, 9, 1, 1); R(b, 21, 14, 1, 1); }
+  else if (shape === 'pizza') { for (let i = 0; i < 8; i++) R(a, 4 + i * 2, 13 + Math.floor(i / 2), 2, 7 - Math.floor(i / 2) * 2); R(c, 2, 13, 3, 7); R(b, 8, 15, 2, 2); R(b, 12, 16, 2, 1); }
+}
 function packIconURL(it, color) {
+  const key = (it ? it.id : '_revive') + color;
+  if (ICON_CACHE[key]) return ICON_CACHE[key];
   const c = document.createElement('canvas'); c.width = 24; c.height = 24; const g = c.getContext('2d');
   g.fillStyle = it ? color : '#ffe0e8'; g.fillRect(0, 0, 24, 24);
   g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(2, 2, 20, 3);
-  if (!it) { pixelHeart(g, 8, 8); pixelHeart(g, 4, 13); pixelHeart(g, 13, 13); return c.toDataURL(); }
-  const hex = v => '#' + v.toString(16).padStart(6, '0');
-  if (it.kind === 'boat') { const [a, b] = it.pal; g.fillStyle = '#222'; g.fillRect(3, 13, 18, 6); g.fillStyle = hex(a); g.fillRect(4, 13, 16, 4); g.fillStyle = hex(b); g.fillRect(4, 16, 16, 1); g.fillStyle = '#ffe3c9'; g.fillRect(10, 6, 5, 5); g.fillStyle = '#ffd23f'; g.fillRect(10, 11, 5, 3); }
-  else { g.fillStyle = '#ffe3c9'; g.fillRect(8, 3, 9, 8); g.fillStyle = '#222'; g.fillRect(10, 6, 1, 1); g.fillRect(14, 6, 1, 1); g.fillStyle = it.color; g.fillRect(7, 11, 11, 9); g.fillRect(4, 12, 3, 4); g.fillRect(18, 12, 3, 4); }
-  return c.toDataURL();
+  if (!it) { pixelHeart(g, 8, 8); pixelHeart(g, 4, 13); pixelHeart(g, 13, 13); return ICON_CACHE[key] = c.toDataURL(); }
+  if (it.kind === 'boat') drawBoatIcon(g, boatShape(it), it.pal || SHOP_PAL[boatShape(it)]);
+  else {
+    const col = it.color === 'rainbow' ? '#ff5a8a' : it.color, hc = HAT_ICON[it.hat];
+    g.fillStyle = '#ffe3c9'; g.fillRect(8, 3, 9, 8); g.fillStyle = '#222'; g.fillRect(10, 6, 1, 1); g.fillRect(14, 6, 1, 1);
+    g.fillStyle = col; g.fillRect(7, 11, 11, 9); g.fillRect(4, 12, 3, 4); g.fillRect(18, 12, 3, 4);
+    g.fillStyle = 'rgba(0,0,0,.28)';
+    if (it.pattern === 'stripes') for (let y = 12; y < 20; y += 3) g.fillRect(7, y, 11, 1);
+    else if (it.pattern === 'spots' || it.pattern === 'scales') [[8, 12], [14, 13], [10, 16], [15, 18]].forEach(([x, y]) => g.fillRect(x, y, 2, 2));
+    else if (it.pattern === 'check') for (let y = 11; y < 20; y += 2) for (let x = 7 + (y % 4 === 1 ? 0 : 2); x < 18; x += 4) g.fillRect(x, y, 2, 2);
+    else if (it.pattern === 'stars') { g.fillStyle = '#fff'; [[9, 13], [15, 15], [11, 18]].forEach(([x, y]) => g.fillRect(x, y, 1, 1)); }
+    if (it.hat === 'ears') { g.fillStyle = col; g.fillRect(9, 0, 2, 4); g.fillRect(14, 0, 2, 4); }
+    else if (hc) { g.fillStyle = hc; g.fillRect(it.hat === 'flower' ? 14 : 8, 1, it.hat === 'flower' ? 3 : 9, 3); if (it.hat === 'wizard' || it.hat === 'tophat' || it.hat === 'chef' || it.hat === 'party') g.fillRect(10, 0, 5, 2); }
+    if (it.glow) { g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(6, 10, 1, 10); g.fillRect(18, 10, 1, 10); }
+  }
+  return ICON_CACHE[key] = c.toDataURL();
 }
 function showPackPop(opts) {
   const r = opts.rarity ? RAR[opts.rarity] : null;
@@ -1871,13 +2238,38 @@ function claimCheckpoint(k, done) {
     save.revives += rw.count; persist();
     showPackPop({banner: 'CHECKPOINT ' + k, color: '#ff2d55', title: 'Revive Pack!', text: '+' + rw.count + ' Revives. You have ' + save.revives + ' now.', onClose: done});
   } else {
-    const res = openPack(rw.pack), it = res.item, r = RAR[res.rar];
-    showPackPop({banner: rw.pack.name.toUpperCase() + ' · ' + r.name.toUpperCase(), rarity: res.rar, item: it, dupe: res.dupe,
-      title: it.name + (it.kind === 'boat' ? ' (boat)' : ' (baby)'),
-      text: '<b>' + it.perk + '</b>' + (res.dupe ? '<br>You already have it: +' + res.dupe + ' coins instead.' : '') + '<br>+' + res.bonus + ' bonus coins',
-      onClose: done});
+    const res = openPack(rw.pack);
+    playPackOpening(rw.pack, res, () => showPackReveal(rw.pack, res, done));
   }
 }
+// What you got out of a pack (the card after the opening animation).
+function showPackReveal(pack, res, done) {
+  const it = res.item, r = RAR[res.rar];
+  showPackPop({banner: pack.name.toUpperCase() + ' · ' + r.name.toUpperCase(), rarity: res.rar, item: it, dupe: res.dupe,
+    title: it.name + (it.kind === 'boat' ? ' (boat)' : ' (baby)'),
+    text: '<b>' + it.perk + '</b>' + (res.dupe ? '<br>You already have it: +' + res.dupe + ' coins instead.' : '') + (res.bonus ? '<br>+' + res.bonus + ' bonus coins' : ''),
+    onClose: done});
+}
+// ---------- Pack opening: tap the pack, it shakes while glowing the colour of what's inside, then bursts open ----------
+let poReveal = null, poBusy = false, poRank = 0;
+function playPackOpening(pack, res, onReveal) {
+  const el = $('packOpen'), btn = $('poPack'), r = RAR[res.rar];
+  el.className = 'show'; el.style.setProperty('--glow', r.id === 'secret' ? '#19e3c4' : r.color);
+  btn.style.setProperty('--pk', pack.color); btn.classList.toggle('secretglow', pack.id === 'secret');
+  $('poName').textContent = pack.name;
+  poReveal = onReveal; poBusy = false; poRank = r.rank;
+  btn.focus();
+}
+$('poPack').onclick = () => {
+  if (poBusy || !poReveal) return;
+  poBusy = true;
+  const el = $('packOpen');
+  el.classList.add('shaking'); Sfx.rumble();
+  setTimeout(() => {
+    el.classList.remove('shaking'); el.classList.add('burst'); Sfx.pop();
+    setTimeout(() => { el.className = ''; const f = poReveal; poReveal = null; f(); }, 380);
+  }, 900 + poRank * 150); // rarer prizes keep you waiting a little longer
+};
 // XP bar animation on the win screen; stops at each checkpoint to open its pack
 let passAnim = null;
 function startPassAnim(from, to) { passAnim = {x: from, to, paused: false}; }
@@ -1913,6 +2305,79 @@ function openPass() {
 $('mPass').onclick = openPass;
 $('pBack').onclick = () => { coinText('menuCoins'); show('scrMenu'); };
 
+// ---------- Ghost: a see-through replay of your last try, running a little ahead of you ----------
+// Every try is recorded (position + how the boat was tilted, 30 times a second). When you retry or revive,
+// that recording plays back just ahead of where you are, faster than you if it falls behind, but never more than
+// GHOST_LEAD ahead. Where the last try ended in a splat it squashes flat and leaves a red marker.
+const GHOST_EVERY = 4, GHOST_FPS = 120 / GHOST_EVERY, GHOST_LEAD = Math.round(0.6 * GHOST_FPS), GF = 7; // GF = numbers per frame
+const ghostMat = new THREE.MeshBasicMaterial({color: 0xf2fbff, transparent: true, opacity: 0.7, depthWrite: false});
+const ghostEdge = new THREE.MeshBasicMaterial({color: 0x10245e, transparent: true, opacity: 0.6, depthWrite: false, side: THREE.BackSide}); // dark outline so it shows on bright slides
+const deathMark = new THREE.Group();
+(function makeDeathMark() {
+  const red = new THREE.MeshBasicMaterial({color: 0xff2d55, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide});
+  const ring = new THREE.Mesh(new THREE.RingGeometry(1.0, 1.5, 24), red); ring.rotation.x = -Math.PI / 2;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 14, 6), red); beam.position.y = 7;
+  const x1 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.1, 0.35), red), x2 = x1.clone(); x1.rotation.y = Math.PI / 4; x2.rotation.y = -Math.PI / 4;
+  deathMark.add(ring, beam, x1, x2); deathMark.visible = false; scene.add(deathMark);
+})();
+let rec = [], recTick = 0, lastTry = null, ghost = null;
+const gqa = new THREE.Quaternion(), gqb = new THREE.Quaternion();
+function recordTick() {
+  if (recTick++ % GHOST_EVERY) return;
+  const q = player.quaternion;
+  rec.push(p.x, p.y, p.z, q.x, q.y, q.z, q.w);
+}
+// Remember this try as the next ghost (only if it lasted long enough to be worth watching).
+function keepTry(died) { if (rec.length / GF >= GHOST_FPS * 1.5) lastTry = {f: rec, died}; rec = []; recTick = 0; }
+function nearestFrame(f, from, to) {
+  let best = from, bd = Infinity;
+  for (let i = Math.max(0, from); i <= Math.min(f.length / GF - 1, to); i++) {
+    const dx = f[i * GF] - p.x, dy = f[i * GF + 1] - p.y, dz = f[i * GF + 2] - p.z, d = dx * dx + dy * dy + dz * dz;
+    if (d < bd) { bd = d; best = i; }
+  }
+  return best;
+}
+function ghostOff() {
+  if (ghost) { scene.remove(ghost.m); ghost = null; }
+  deathMark.visible = false;
+}
+function startGhost() {
+  ghostOff();
+  if (!lastTry) return;
+  const m = player.clone(); // same boat and baby you have on now, but see-through
+  const edges = [];
+  m.traverse(o => { if (o.isMesh) { o.material = ghostMat; o.castShadow = false; if (o.visible) edges.push(o); } });
+  for (const o of edges) { const e = new THREE.Mesh(o.geometry, ghostEdge); e.scale.setScalar(1.15); o.add(e); }
+  m.scale.setScalar(PLAYER_SCALE); scene.add(m);
+  const f = lastTry.f, n = f.length / GF, at = nearestFrame(f, 0, n - 1);
+  ghost = {f, n, died: lastTry.died, m, gi: at, match: at};
+  if (ghost.died) { deathMark.position.set(f[(n - 1) * GF], Math.max(0.05, f[(n - 1) * GF + 1]), f[(n - 1) * GF + 2]); deathMark.visible = true; }
+}
+function updateGhost(dt) {
+  if (!ghost) return;
+  ghost.m.visible = mode === 'play' || mode === 'dead' || mode === 'won';
+  deathMark.visible = ghost.died && ghost.m.visible;
+  if (!ghost.m.visible) return;
+  deathMark.scale.setScalar(1 + 0.15 * Math.sin(tNow * 6));
+  if (mode === 'play') {
+    // where are you on the old path? then aim a little ahead of that
+    ghost.match = nearestFrame(ghost.f, ghost.match - 5, ghost.match + 90);
+    const target = Math.min(ghost.n - 1, ghost.match + GHOST_LEAD);
+    if (ghost.gi < target) ghost.gi = Math.min(target, ghost.gi + dt * GHOST_FPS * 1.6 + (target - ghost.gi) * Math.min(1, dt * 2));
+  }
+  const f = ghost.f, i = Math.min(ghost.n - 2, Math.floor(ghost.gi)), t = Math.min(1, ghost.gi - i), a = i * GF, b = a + GF;
+  if (ghost.n < 2) return;
+  ghost.m.position.set(f[a] + (f[b] - f[a]) * t, f[a + 1] + (f[b + 1] - f[a + 1]) * t + 0.05, f[a + 2] + (f[b + 2] - f[a + 2]) * t);
+  gqa.set(f[a + 3], f[a + 4], f[a + 5], f[a + 6]); gqb.set(f[b + 3], f[b + 4], f[b + 5], f[b + 6]);
+  ghost.m.quaternion.copy(gqa).slerp(gqb, t);
+  const end = ghost.gi >= ghost.n - 1.01;
+  if (end && ghost.died) ghost.m.scale.set(1.5 * PLAYER_SCALE, 0.25 * PLAYER_SCALE, 1.5 * PLAYER_SCALE);
+  else ghost.m.scale.setScalar(PLAYER_SCALE);
+  // fade out when it's right on top of you so it never hides your own boat
+  const d = ghost.m.position.distanceTo(player.position);
+  ghostMat.opacity = end && !ghost.died ? 0.25 : 0.2 + 0.5 * clamp((d - 1) / 4, 0, 1); ghostEdge.opacity = ghostMat.opacity * 0.85;
+}
+
 // ---------- Revive: put you back on the slide just before you fell ----------
 let lastSafe = null, safeTick = 0;
 function trackSafeSpot() {
@@ -1930,6 +2395,9 @@ function revive() {
   hopFrom = null; jumpQueued = false;
   player.visible = true; player.scale.setScalar(PLAYER_SCALE);
   show(null); showControls(true); mode = 'play'; acc = 0;
+  placePlayer(); startGhost();
+  // this try carries on from the old one, so keep the part before the revive spot
+  rec = ghost ? ghost.f.slice(0, (ghost.match + 1) * GF) : []; recTick = 0;
   Sfx.boing(); toast('Revived! ' + save.revives + ' left');
 }
 $('dRevive').onclick = revive;
