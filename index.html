@@ -532,12 +532,14 @@ function levelReward(n) { return 10 + n * 4; }
 function outline(n, k) {
   const rank = levelRank(n), easy = Math.max(0, 1 - k); // easy: 0 = normal, up to ~0.9 = much easier
   const base = Math.min(1, (n - 1) / 25) + 0.3 * ramp(n - 26, 150); // how twisty: same as before for 25 levels, then keeps creeping up
-  const d = Math.min(1.4 + 0.2 * ramp(rank, 60), base * k + (k > 1 ? (k - 1) * 0.5 : 0));
+  // the skill knob can only nudge a level a little past its normal twistiness, so a good streak
+  // never turns level 15 into level 50 (that used to cause a sudden wall of difficulty)
+  const d = Math.min(1.4 + 0.2 * ramp(rank, 60), base * k, base + 0.25);
   return {
     n, rank, k, d, easy,
     hard: ramp(rank - 3, 30),                       // 0..1: how much the mix leans toward the hard pieces
     H: levelHeight(n) * (1 - 0.45 * easy),
-    w: Math.max(3.1, 7 - 3.4 * d) + easy * 3,      // slide width
+    w: 7 + easy * 3,                               // slide width: never narrower than level 1 (thin slides flung you off on tiny turns)
     bend: 1 - 0.45 * easy,                         // easier = gentler bends
     runsMin: n === 1 ? 1 : 1 + Math.floor(2 * ramp(rank - 12, 25)),
     runsMax: n === 1 ? 1 : 4 + Math.floor(2 * ramp(rank - 15, 30)),
@@ -887,12 +889,13 @@ function beatChance(L, skill, tries) {
 // Pick a version of level n that (1) a perfect player can beat and (2) gives *you* a fair chance.
 // Builds the level at different difficulty settings and keeps the one whose chance is closest to the target.
 const TARGET_CHANCE = 0.6, CHANCE_OK = 0.15;
+const K_MAX = 1.3; // hardest version of a level the skill knob may pick (1 = normal)
 const levelCache = new Map();
 function getLevel(n, skill) {
   skill = skill == null ? 0.5 : skill;
   const key = n + ':' + Math.round(skill * 20);
   if (levelCache.has(key)) return levelCache.get(key);
-  let best = null, bestGap = 1e9, k = 1, lo = 0.08, hi = 1.8;
+  let best = null, bestGap = 1e9, k = 1, lo = 0.08, hi = K_MAX;
   for (let round = 0; round < 7; round++) {
     let gotOne = false, chSum = 0, cnt = 0;
     for (let v = 0; v < 3; v++) {
@@ -908,7 +911,7 @@ function getLevel(n, skill) {
     if (bestGap <= CHANCE_OK) break;
     const avg = cnt ? chSum / cnt : 0;
     // too hard (or impossible) -> easier; too easy -> harder (binary search on the difficulty knob)
-    if (!gotOne || avg < TARGET_CHANCE) { hi = k; k = (k + lo) / 2; } else { lo = k; k = Math.min((k + hi) / 2, 1.8); }
+    if (!gotOne || avg < TARGET_CHANCE) { hi = k; k = (k + lo) / 2; } else { lo = k; k = Math.min((k + hi) / 2, K_MAX); }
   }
   if (!best) { for (let v = 50; v < 80 && !best; v++) { const c = generate(n, v, 0.1); if (!c.clash && botPlay(c, BASE_P)) { best = c; c.chance = beatChance(c, skill, 10); } } }
   if (!best) { best = generate(n, 0, 0.1); best.chance = 0; }
