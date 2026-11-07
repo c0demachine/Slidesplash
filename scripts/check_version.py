@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """Fail if the game changed but its version number in index.html didn't go up.
 
-The version is  id="gameVersion">Version T.B.S<  (shown in Settings):
-  T = total updates ever (the first release counts as 1)
-  B = how many of them were big changes (new features, modes, screens)
-  S = how many were small changes (fixes, tweaks, wording)
-so T always equals 1 + B + S. If index.html or music.mp3 differ from the base
-branch (main by default), the version must be one update ahead of the base:
-T + 1, and either B + 1 or S + 1.
+The version is  id="gameVersion">Version MAJOR.MINOR.PATCH<  (shown in Settings),
+the standard "semantic versioning" style:
+  PATCH + 1  for a small fix or tweak            (1.4.1 -> 1.4.2)
+  MINOR + 1  for a new feature, PATCH back to 0  (1.4.2 -> 1.5.0)
+  MAJOR + 1  for a huge overhaul, rest back to 0 (1.5.0 -> 2.0.0)
+If index.html or music.mp3 differ from the base branch (main by default), the
+version must be exactly one of those three steps past the base's version.
 
 Usage:
   python3 scripts/check_version.py --staged   # pre-commit: what you're about to commit
@@ -59,20 +59,16 @@ def main():
     old = version_of(git("show", f"{base}:index.html").stdout)
 
     if new is None:
-        print('index.html: missing the version line  id="gameVersion">Version T.B.S<  in Settings.')
-        return 1
-    t, b, s = new
-    if t != 1 + b + s:
-        print(f"index.html: Version {show(new)} doesn't add up: the first number must be "
-              f"1 + the other two ({1 + b + s}).")
+        print('index.html: missing the version line  id="gameVersion">Version MAJOR.MINOR.PATCH<  in Settings.')
         return 1
     if old is not None:
-        ot, ob, os_ = old
-        big, small = (ot + 1, ob + 1, os_), (ot + 1, ob, os_ + 1)
-        if new not in (big, small):
-            print(f"index.html: the game changed, so the version must be one update past "
-                  f"{base}'s {show(old)}: Version {show(big)} for a big change or "
-                  f"{show(small)} for a small one (it says {show(new)}).")
+        ma, mi, pa = old
+        steps = {"a small fix": (ma, mi, pa + 1), "a new feature": (ma, mi + 1, 0),
+                 "a huge overhaul (ask the owner first)": (ma + 1, 0, 0)}
+        if new not in steps.values():
+            options = ", ".join(f"{show(v)} for {k}" for k, v in steps.items())
+            print(f"index.html: the game changed, so the version must be one step past "
+                  f"{base}'s {show(old)}: {options} (it says {show(new)}).")
             return 1
     print(f"Version check passed (Version {show(new)}, {base} has "
           f"{show(old) if old else 'none'}).")

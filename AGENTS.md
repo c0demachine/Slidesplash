@@ -53,19 +53,19 @@ dependency at all.
 
 ### Raise the version number with every game change
 
-The version shows at the bottom of Settings as `Version T.B.S`
-(`id="gameVersion">Version T.B.S<` in `index.html`):
+The version shows at the bottom of Settings as `Version MAJOR.MINOR.PATCH`
+(`id="gameVersion">Version 1.4.1<` in `index.html`), standard semantic versioning:
 
-- **T**: total updates ever (the first release was 1)
-- **B**: how many were big changes (new features, modes, screens, shop items)
-- **S**: how many were small changes (bug fixes, balance tweaks, wording, notices)
+- **PATCH + 1** for a small change: bug fix, balance tweak, wording, notices (1.4.1 → 1.4.2)
+- **MINOR + 1**, PATCH to 0, for a new feature: mode, screen, shop items (1.4.2 → 1.5.0)
+- **MAJOR + 1**, the rest to 0, for a huge overhaul (1.5.0 → 2.0.0). Ask the owner first.
 
-so T is always 1 + B + S. Whenever `index.html` or `music.mp3` differs from
-`main`, the version must be exactly one update past `main`'s: T + 1, plus either
-B + 1 (big) or S + 1 (small). Bump once per branch, not once per commit. If
-unsure whether a change is big or small, ask the owner. `scripts/check_version.py`
-enforces this in the pre-commit hook and in GitHub Actions. If two branches both
-took the same number, the second one to merge must bump again on top of the first.
+Whenever `index.html` or `music.mp3` differs from `main`, the version must be
+exactly one of those steps past `main`'s. Bump once per branch, not once per
+commit. If unsure whether a change is a fix or a feature, ask the owner.
+`scripts/check_version.py` enforces this in the pre-commit hook and in GitHub
+Actions. If two branches both took the same number, the second one to merge
+must bump again on top of the first.
 
 Scripts created at runtime (`document.createElement('script')`, `import()`
 from a URL) aren't caught by the checker. Don't load remote code that way.
