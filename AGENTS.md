@@ -11,7 +11,7 @@ will catch a mistake in review.
 
 ## Hard rules (enforced automatically)
 
-These are checked by `scripts/check_sri.py`, which runs in the git
+These are checked by `scripts/check_sri.py` and `scripts/check_version.py`, which run in the git
 pre-commit hook and in GitHub Actions (`.github/workflows/checks.yml`).
 A failing check means **do not commit**: fix the cause, never bypass it
 (no `git commit --no-verify`, no deleting or weakening the check).
@@ -50,6 +50,22 @@ makes the browser refuse the file, with a console error mentioning "integrity".
 **Allowed CDNs:** `cdnjs.cloudflare.com` (preferred), `cdn.jsdelivr.net`,
 `unpkg.com`. Ask the owner before adding any other origin or any new
 dependency at all.
+
+### Raise the version number with every game change
+
+The version shows at the bottom of Settings as `Version MAJOR.MINOR.PATCH`
+(`id="gameVersion">Version 1.4.1<` in `index.html`), standard semantic versioning:
+
+- **PATCH + 1** for a small change: bug fix, balance tweak, wording, notices (1.4.1 → 1.4.2)
+- **MINOR + 1**, PATCH to 0, for a new feature: mode, screen, shop items (1.4.2 → 1.5.0)
+- **MAJOR + 1**, the rest to 0, for a huge overhaul (1.5.0 → 2.0.0). Ask the owner first.
+
+Whenever `index.html` or `music.mp3` differs from `main`, the version must be
+exactly one of those steps past `main`'s. Bump once per branch, not once per
+commit. If unsure whether a change is a fix or a feature, ask the owner.
+`scripts/check_version.py` enforces this in the pre-commit hook and in GitHub
+Actions. If two branches both took the same number, the second one to merge
+must bump again on top of the first.
 
 Scripts created at runtime (`document.createElement('script')`, `import()`
 from a URL) aren't caught by the checker. Don't load remote code that way.
