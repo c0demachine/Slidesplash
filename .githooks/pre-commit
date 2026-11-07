@@ -1,4 +1,7 @@
 #!/bin/sh
-# Blocks commits that add external scripts/stylesheets without SRI hashes.
+# Blocks commits that add external scripts/stylesheets without SRI hashes,
+# or that change the game without raising its version number.
 # Enable once per clone:  git config core.hooksPath .githooks
-exec python3 "$(git rev-parse --show-toplevel)/scripts/check_sri.py"
+root="$(git rev-parse --show-toplevel)"
+python3 "$root/scripts/check_sri.py" || exit 1
+exec python3 "$root/scripts/check_version.py" --staged

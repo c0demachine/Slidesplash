@@ -11,7 +11,7 @@ will catch a mistake in review.
 
 ## Hard rules (enforced automatically)
 
-These are checked by `scripts/check_sri.py`, which runs in the git
+These are checked by `scripts/check_sri.py` and `scripts/check_version.py`, which run in the git
 pre-commit hook and in GitHub Actions (`.github/workflows/checks.yml`).
 A failing check means **do not commit**: fix the cause, never bypass it
 (no `git commit --no-verify`, no deleting or weakening the check).
@@ -50,6 +50,15 @@ makes the browser refuse the file, with a console error mentioning "integrity".
 **Allowed CDNs:** `cdnjs.cloudflare.com` (preferred), `cdn.jsdelivr.net`,
 `unpkg.com`. Ask the owner before adding any other origin or any new
 dependency at all.
+
+### Raise the version number with every game change
+
+The version shows at the bottom of Settings: `id="gameVersion">Version N<`
+in `index.html`. Whenever `index.html` or `music.mp3` differs from `main`, N must
+be bigger than `main`'s N (normally `main`'s N + 1, once per branch, not once
+per commit). `scripts/check_version.py` enforces this in the pre-commit hook and
+in GitHub Actions. If two branches both took the same number, the second one to
+merge must raise it again.
 
 Scripts created at runtime (`document.createElement('script')`, `import()`
 from a URL) aren't caught by the checker. Don't load remote code that way.

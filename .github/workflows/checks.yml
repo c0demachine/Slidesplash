@@ -14,3 +14,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check subresource integrity
         run: python3 scripts/check_sri.py
+      - name: Check the version number went up
+        env:
+          BASE: ${{ github.base_ref || 'main' }}
+        run: |
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 scripts/check_version.py FETCH_HEAD
