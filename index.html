@@ -92,6 +92,20 @@
   #packOpen.burst #poFlash{animation:flash .55s ease-out}
   @keyframes flash{20%{opacity:.95}100%{opacity:0}}
   @media (prefers-reduced-motion:reduce){#poPack,#poRays{animation:none!important}}
+  /* settings + control picker */
+  .setrow{display:flex;align-items:center;gap:10px;text-align:left;border:3px solid #e3e8f0;border-radius:16px;padding:10px 12px;margin:8px 0;background:#f7f9fc;font-weight:800}
+  .setrow label{flex:none;width:96px}
+  .setrow input[type=range]{flex:1;min-width:0;accent-color:#3fa9ff;height:28px}
+  .setrow output{flex:none;width:44px;text-align:right;color:#556}
+  .ctl{text-align:left;border:3px solid #e3e8f0;border-radius:16px;padding:10px 12px;margin:8px 0;background:#f7f9fc}
+  .ctl.sel{border-color:#36c46a;background:#eafbf0}
+  .ctl b{font-size:18px}
+  .ctl small{display:block;color:#667;margin:2px 0 8px}
+  .ctl .row .big{font-size:17px;padding:10px;margin:0}
+  .big[disabled]{opacity:.45;cursor:default}
+  .steer.ghost{pointer-events:none;opacity:.55}
+  #stick{position:fixed;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;border:4px solid rgba(255,255,255,.8);background:rgba(0,0,0,.18);display:none;pointer-events:none}
+  #stick i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(255,255,255,.75)}
   #toast{position:fixed;top:70px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:#fff;font-weight:800;padding:8px 16px;border-radius:999px;display:none}
 </style>
 </head>
@@ -103,6 +117,7 @@
 <button class="steer" id="btnL" aria-label="Steer left">◀</button>
 <button class="steer" id="btnR" aria-label="Steer right">▶</button>
 <button class="steer" id="btnJ" aria-label="Jump">JUMP</button>
+<div id="stick"><i></i></div>
 <div id="toast"></div>
 
 <div class="overlay" id="scrMenu"><div class="card">
@@ -113,8 +128,45 @@
   <button class="big pink" id="mPlay">Play</button>
   <button class="big" id="mShop">Shop</button>
   <button class="big" id="mPass" style="background:#9b5cff;box-shadow:0 5px 0 #6a35c4">Slide Pass</button>
-  <div class="row"><button class="big gray" id="mSound">Sound: On</button><button class="big gray" id="mMusic">Music: On</button></div>
+  <button class="big gray" id="mSettings">⚙ Settings</button>
   <button class="big gray" id="mUpdate">Check for updates</button>
+</div></div>
+
+<div class="overlay" id="scrSettings"><div class="card">
+  <div id="setMain">
+    <h2>Settings</h2>
+    <div class="section">Sound</div>
+    <div class="setrow"><label for="volMusic">Music</label><input type="range" id="volMusic" min="0" max="100" step="5"><output id="volMusicOut" for="volMusic">0%</output></div>
+    <div class="setrow"><label for="volSfx">Effects</label><input type="range" id="volSfx" min="0" max="100" step="5"><output id="volSfxOut" for="volSfx">0%</output></div>
+    <button class="big gray" id="setMute">All sound: On</button>
+    <div class="section">Controls</div>
+    <p id="setCtlText" style="text-align:left;margin:4px 0"></p>
+    <button class="big" id="setCtl">Change controls</button>
+    <div class="section">Your data</div>
+    <button class="big pink" id="setWipe">Delete all data</button>
+    <button class="big gray" id="setBack">Back</button>
+  </div>
+  <div id="setConfirm" style="display:none">
+    <h2>Delete everything?</h2>
+    <p>This deletes your coins, boats, babies, upgrades, levels, Slide Pass and settings on this device. It can't be undone.</p>
+    <button class="big pink" id="wipeYes">Yes, delete all my data</button>
+    <button class="big gray" id="wipeNo">No, keep my stuff</button>
+  </div>
+</div></div>
+
+<div class="overlay" id="scrControls"><div class="card">
+  <h2 id="ctlTitle">Pick your controls</h2>
+  <p id="ctlText">How do you want to steer your boat? Tap "Try it" to practise with one first. You can change this any time in Settings.</p>
+  <div id="ctlList"></div>
+  <p style="font-size:13px;margin:6px 0 0">On a computer, the keyboard always works too: A/D or ◀ ▶ arrows to steer, Space to jump.</p>
+  <button class="big gray" id="ctlBack">Back</button>
+</div></div>
+
+<div class="overlay" id="scrTrial"><div class="card">
+  <h2 id="trialTitle">Splash!</h2>
+  <p id="trialText">That was just practice, so nothing was saved.</p>
+  <button class="big green" id="trialPick">Use these controls</button>
+  <div class="row"><button class="big" id="trialAgain">Try again</button><button class="big gray" id="trialList">Other controls</button></div>
 </div></div>
 
 <div class="overlay" id="scrLevels"><div class="card">
@@ -1057,15 +1109,22 @@ const UPGRADES = [
 ];
 const UPG_COST = [30, 60, 100, 160];
 
-function defaultSave() { return {coins: 0, owned: ['sunny'], skin: 'sunny', ownedBoats: ['tube'], boat: 'tube', upg: {steer: 0, air: 0, bonus: 0}, beaten: 0, skill: 0.5, revives: 2, xp: 0, cpClaimed: 0}; }
+function defaultSave() { return {coins: 0, owned: ['sunny'], skin: 'sunny', ownedBoats: ['tube'], boat: 'tube', upg: {steer: 0, air: 0, bonus: 0}, beaten: 0, skill: 0.5, revives: 2, xp: 0, cpClaimed: 0, controls: null}; }
 function loadSave() {
   try {
     const s = JSON.parse(localStorage.getItem('slideSplash.v1'));
-    if (s && typeof s.coins === 'number') { const d = defaultSave(); return Object.assign(d, s, {upg: Object.assign(d.upg, s.upg)}); }
+    if (s && typeof s.coins === 'number') {
+      const d = defaultSave(), out = Object.assign(d, s, {upg: Object.assign(d.upg, s.upg)});
+      if (!CONTROL_IDS.includes(out.controls)) out.controls = null; // not picked yet (or unknown): ask once
+      return out;
+    }
   } catch (e) {}
   return defaultSave();
 }
-function persist() { try { localStorage.setItem('slideSplash.v1', JSON.stringify(save)); } catch (e) {} }
+// Ways to steer. Saves made before this existed have no choice yet, so everyone gets asked once.
+const CONTROL_IDS = ['buttons', 'sides', 'drag', 'tilt'];
+let wiped = false; // set by "Delete all data" so nothing gets saved again while the page reloads
+function persist() { if (wiped) return; try { localStorage.setItem('slideSplash.v1', JSON.stringify(save)); } catch (e) {} }
 let save = loadSave();
 function params() {
   const k = curSkin(), b = curBoat();
@@ -1077,24 +1136,39 @@ function params() {
 
 // ---------- Sound effects (made with Web Audio, no files) ----------
 const Sfx = (() => {
-  let ctx = null, master = null, noiseBuf = null, slideGain = null, slideFilter = null, muted = false, musicOff = false, music = null;
-  try { muted = localStorage.getItem('slideSplash.muted') === '1'; musicOff = localStorage.getItem('slideSplash.musicOff') === '1'; } catch (e) {}
-  const MUSIC_VOL = 0.35;
+  let ctx = null, master = null, noiseBuf = null, slideGain = null, slideFilter = null, muted = false, music = null, musicGain = null;
+  // musicVol / sfxVol: 0..1 from the Settings sliders (1 = the game's normal loudness)
+  let musicVol = 1, sfxVol = 1;
+  const readVol = (key, dflt) => { const v = parseFloat(localStorage.getItem(key)); return Number.isFinite(v) ? clamp(v, 0, 1) : dflt; };
+  try {
+    muted = localStorage.getItem('slideSplash.muted') === '1';
+    musicVol = readVol('slideSplash.musicVol', localStorage.getItem('slideSplash.musicOff') === '1' ? 0 : 1); // old "Music: Off" = volume 0
+    sfxVol = readVol('slideSplash.sfxVol', 1);
+  } catch (e) {}
+  const MUSIC_VOL = 0.35, SFX_VOL = 0.7;
+  function sfxLevel() { return muted ? 0 : SFX_VOL * sfxVol; }
+  // iPhones ignore audio.volume, so when we can, the music goes through Web Audio where volume always works.
+  // (Not when the page is opened as a local file: the browser would then play the music silently.)
+  function routeMusic() {
+    if (musicGain || !ctx || !music || !/^https?:$/.test(location.protocol)) return;
+    try { const src = ctx.createMediaElementSource(music); musicGain = ctx.createGain(); src.connect(musicGain); musicGain.connect(ctx.destination); } catch (e) { musicGain = null; }
+  }
   function syncMusic() {
     if (!music) return;
-    if (muted || musicOff) music.pause();
-    else { music.volume = MUSIC_VOL; const pr = music.play(); if (pr && pr.catch) pr.catch(() => {}); }
+    const v = MUSIC_VOL * musicVol;
+    if (musicGain) { musicGain.gain.value = v; music.volume = 1; } else music.volume = v;
+    if (muted || musicVol <= 0) music.pause();
+    else { const pr = music.play(); if (pr && pr.catch) pr.catch(() => {}); }
   }
   function startMusic() {
     if (!music) { try { music = new Audio('music.mp3'); music.loop = true; music.preload = 'auto'; } catch (e) { music = null; } }
-    syncMusic();
+    routeMusic(); syncMusic();
   }
   function init() {
-    if (!music || music.paused) startMusic();
-    if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); return; }
+    if (ctx) { if (ctx.state === 'suspended') ctx.resume().catch(() => {}); if (!music || music.paused) startMusic(); return; }
     try {
       ctx = new (window.AudioContext || window.webkitAudioContext)();
-      master = ctx.createGain(); master.gain.value = muted ? 0 : 0.7; master.connect(ctx.destination);
+      master = ctx.createGain(); master.gain.value = sfxLevel(); master.connect(ctx.destination);
       noiseBuf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
       const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
       const src = ctx.createBufferSource(); src.buffer = noiseBuf; src.loop = true;
@@ -1102,6 +1176,7 @@ const Sfx = (() => {
       slideGain = ctx.createGain(); slideGain.gain.value = 0;
       src.connect(slideFilter); slideFilter.connect(slideGain); slideGain.connect(master); src.start();
     } catch (e) { ctx = null; }
+    startMusic();
   }
   function tone(freq, dur, type, vol, to, delay) {
     if (!ctx) return;
@@ -1122,9 +1197,12 @@ const Sfx = (() => {
   return {
     init,
     isMuted: () => muted,
-    setMuted(m) { muted = m; try { localStorage.setItem('slideSplash.muted', m ? '1' : '0'); } catch (e) {} if (master) master.gain.value = m ? 0 : 0.7; syncMusic(); },
-    isMusicOff: () => musicOff,
-    setMusicOff(m) { musicOff = m; try { localStorage.setItem('slideSplash.musicOff', m ? '1' : '0'); } catch (e) {} startMusic(); },
+    setMuted(m) { muted = m; try { localStorage.setItem('slideSplash.muted', m ? '1' : '0'); } catch (e) {} if (master) master.gain.value = sfxLevel(); syncMusic(); },
+    musicVol: () => musicVol,
+    sfxVol: () => sfxVol,
+    setMusicVol(v) { musicVol = clamp(v, 0, 1); try { localStorage.setItem('slideSplash.musicVol', String(musicVol)); } catch (e) {} startMusic(); },
+    setSfxVol(v) { sfxVol = clamp(v, 0, 1); try { localStorage.setItem('slideSplash.sfxVol', String(sfxVol)); } catch (e) {} if (master) master.gain.value = sfxLevel(); },
+    stopMusic() { if (music) music.pause(); },
     slide(state, speed) {
       if (!ctx) return;
       const t = ctx.currentTime;
@@ -1628,8 +1706,9 @@ function resetPlayer() {
   camLook.set(p.x, p.y, p.z);
 }
 
-const input = {left: false, right: false, kl: false, kr: false};
-function steerValue() { return ((input.right || input.kr) ? 1 : 0) - ((input.left || input.kl) ? 1 : 0); }
+// left/right = on-screen buttons or screen halves, kl/kr = keyboard, axis = drag stick or tilt (-1..1, can be in between)
+const input = {left: false, right: false, kl: false, kr: false, axis: 0};
+function steerValue() { return clamp(((input.right || input.kr) ? 1 : 0) - ((input.left || input.kl) ? 1 : 0) + input.axis, -1, 1); }
 
 let jumpQueued = false;
 function doJump() { if (mode === 'play') jumpQueued = true; }
@@ -1677,6 +1756,7 @@ function win() {
     m.userData.v = new THREE.Vector3(Math.cos(a) * sp, 7 + Math.random() * 7, Math.sin(a) * sp);
     scene.add(m); splashes.push(m);
   }
+  if (trial) { trialOver(true); return; } // practice: no coins, XP or skill change
   const reward = Math.round(level.reward * (1 + 0.25 * save.upg.bonus + (curSkin().coin || 0) + (curBoat().coin || 0))) + shortcuts * 3;
   save.coins += reward;
   const before = save.skill;
@@ -1694,6 +1774,7 @@ function win() {
 }
 function die() {
   mode = 'dead'; endTimer = 0.8; Sfx.splat();
+  if (trial) { p.y = Math.max(p.y, 0); trialOver(false); return; }
   updateSkill(false); persist();
   p.y = Math.max(p.y, 0);
   recTick = 0; recordTick(); keepTry(true); // the spot you splatted is the last frame of the ghost
@@ -1784,7 +1865,7 @@ function updateVisuals(dt) {
   }
   if (mode === 'won' || mode === 'dead') {
     endTimer -= dt;
-    if (endTimer <= 0 && !document.querySelector('.overlay.show')) { showControls(false); if (mode === 'dead') refreshDeath(); show(mode === 'won' ? 'scrWin' : 'scrLose'); if (mode === 'won') Sfx.coin(); }
+    if (endTimer <= 0 && !document.querySelector('.overlay.show')) { showControls(false); resetInput(); if (mode === 'dead') refreshDeath(); show(trial ? 'scrTrial' : mode === 'won' ? 'scrWin' : 'scrLose'); if (mode === 'won') Sfx.coin(); }
   }
   // chase camera: turns with the boat and moves around anything that would block the view
   waterTex.offset.y -= dt * 1.6;
@@ -1819,12 +1900,16 @@ function updateVisuals(dt) {
 // ---------- UI ----------
 const $ = id => document.getElementById(id);
 function show(id) { document.querySelectorAll('.overlay').forEach(o => o.classList.toggle('show', o.id === id)); }
+// Which on-screen buttons show depends on the control scheme (with "Tap the sides" the arrows are just pictures).
 function showControls(on) {
+  const sc = controlScheme();
   $('hud').style.display = on ? 'flex' : 'none';
-  $('btnL').style.display = $('btnR').style.display = $('btnJ').style.display = on ? 'flex' : 'none';
+  $('btnL').style.display = $('btnR').style.display = on && (sc === 'buttons' || sc === 'sides') ? 'flex' : 'none';
+  $('btnL').classList.toggle('ghost', sc === 'sides'); $('btnR').classList.toggle('ghost', sc === 'sides');
+  $('btnJ').style.display = on && (sc === 'buttons' || sc === 'sides') ? 'flex' : 'none';
 }
 function updateHud() {
-  $('hudLevel').textContent = 'Level ' + (levelIdx + 1);
+  $('hudLevel').textContent = trial ? 'Practice' : 'Level ' + (levelIdx + 1);
   $('hudCoins').textContent = '● ' + save.coins.toLocaleString();
 }
 function coinText(el) { $(el).textContent = '● ' + save.coins.toLocaleString() + ' coins'; }
@@ -1873,12 +1958,14 @@ function prepareLevel(i) {
 function showReady(i) {
   mode = 'ready'; showControls(true);
 
-  $('readyTitle').textContent = 'Level ' + (i + 1) + ': ' + level.name;
+  $('readyTitle').textContent = trial ? 'Practice: ' + CONTROLS[trial.id].name : 'Level ' + (i + 1) + ': ' + level.name;
   const chanceLine = '<br><b>Difficulty:</b> ' + flagsHTML(levelDifficulty(level)) + '<br><b>Chance to beat:</b> ' + pct(level.chance || 0) + ' at your skill (' + pct(save.skill) + ') · ❤ ' + save.revives + ' revives';
   const k = curSkin(), b = curBoat();
   const loops = level.runs.some(r => r.samples.some(s => s.loop));
   const hint = level.jumpLevel ? 'The pool is too far! Press JUMP near the end of the last slide.' : 'Steer into every turn or you will fly off the edge! Jump off and land further down for a shortcut.';
-  $('readyText').innerHTML = 'Hold ◀ ▶ to steer (also in the air), tap JUMP to hop off, and hold a direction while jumping to leap sideways (keys: A/D or arrows, Space). Land in the pool!<br><b>' + b.name + ':</b> ' + b.perk + '<br><b>' + k.name + ':</b> ' + k.perk + '<br><b style="color:#ff5a8a">' + hint + '</b>' + chanceLine;
+  const how = CONTROLS[controlScheme()].how + ', and steer while jumping to leap sideways (keys: A/D or arrows, Space). Land in the pool!';
+  if (trial) { $('readyText').innerHTML = how + '<br><b style="color:#ff5a8a">This is just practice: no coins, and your skill won\'t change.</b>'; show('scrReady'); return; }
+  $('readyText').innerHTML = how + '<br><b>' + b.name + ':</b> ' + b.perk + '<br><b>' + k.name + ':</b> ' + k.perk + '<br><b style="color:#ff5a8a">' + hint + '</b>' + chanceLine;
   show('scrReady');
 }
 function openReady(i) {
@@ -1894,7 +1981,14 @@ function openReady(i) {
     }, 40);
   }, 40);
 }
-function go() { mode = 'play'; acc = 0; jumpQueued = false; show(null); showControls(true); rec = []; recTick = 0; ghostOff(); }
+function go() {
+  mode = 'play'; acc = 0; jumpQueued = false; show(null); showControls(true); rec = []; recTick = 0; ghostOff(); resetInput();
+  if (controlScheme() === 'tilt') {
+    askTilt();
+    clearTimeout(go.tiltCheck);
+    go.tiltCheck = setTimeout(() => { if (mode === 'play' && controlScheme() === 'tilt' && performance.now() - tiltSeen > 1500) toast('Can\'t read tilt. Try other controls in Settings'); }, 1500);
+  }
+}
 // Start the level again. Restarting in the middle of a try keeps that try as the ghost too.
 function retry() {
   if (mode === 'play') keepTry(false);
@@ -1994,24 +2088,23 @@ function openShop() {
   show('scrShop');
 }
 
-function refreshSound() { $('mSound').textContent = 'Sound: ' + (Sfx.isMuted() ? 'Off' : 'On'); $('mMusic').textContent = 'Music: ' + (Sfx.isMusicOff() ? 'Off' : 'On'); $('hudSound').textContent = Sfx.isMuted() ? '🔇' : '🔊'; }
-$('mMusic').onclick = () => { Sfx.init(); Sfx.setMusicOff(!Sfx.isMusicOff()); refreshSound(); };
+function refreshSound() { $('setMute').textContent = 'All sound: ' + (Sfx.isMuted() ? 'Off' : 'On'); $('hudSound').textContent = Sfx.isMuted() ? '🔇' : '🔊'; }
 const toggleSound = () => { Sfx.init(); Sfx.setMuted(!Sfx.isMuted()); refreshSound(); };
-$('mSound').onclick = toggleSound; $('hudSound').onclick = toggleSound;
+$('setMute').onclick = toggleSound; $('hudSound').onclick = toggleSound;
 refreshSound();
 $('mPlay').onclick = openLevels;
 $('mShop').onclick = openShop;
 $('lBack').onclick = () => show('scrMenu');
 $('sBack').onclick = () => { coinText('menuCoins'); show('scrMenu'); };
 $('rGo').onclick = go;
-$('rBack').onclick = openMenu;
+$('rBack').onclick = () => trial ? backToPicker() : openMenu();
 $('wNext').onclick = () => openReady(levelIdx + 1);
 $('wReplay').onclick = () => openReady(levelIdx);
 $('wMenu').onclick = openMenu;
 $('dRetry').onclick = retry;
 $('dMenu').onclick = openMenu;
 $('hudRetry').onclick = () => { if (mode === 'play' || mode === 'dead' || mode === 'won') { show(null); retry(); } };
-$('hudMenu').onclick = openMenu;
+$('hudMenu').onclick = () => trial ? backToPicker() : openMenu();
 
 function bindSteer(el, key) {
   const on = e => { e.preventDefault(); input[key] = true; el.classList.add('on'); if (el.setPointerCapture) try { el.setPointerCapture(e.pointerId); } catch (_) {} };
@@ -2036,7 +2129,166 @@ addEventListener('keyup', e => {
   if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') input.kl = false;
   if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') input.kr = false;
 });
-addEventListener('blur', () => { input.left = input.right = input.kl = input.kr = false; });
+addEventListener('blur', () => resetInput());
+
+// ---------- Control schemes ----------
+// The keyboard works with every scheme. how = the instructions shown before each level.
+const CONTROLS = {
+  buttons: {name: 'Buttons', icon: '◀ ▶', desc: 'Hold the ◀ ▶ buttons to steer and tap JUMP. The classic way.',
+    how: 'Hold ◀ ▶ to steer (also in the air), tap JUMP to hop off'},
+  sides: {name: 'Tap the sides', icon: '👈👉', desc: 'Hold anywhere on the left or right half of the screen to steer. Big and easy to hit. Tap JUMP to jump.',
+    how: 'Hold the left or right half of the screen to steer (also in the air), tap JUMP to hop off'},
+  drag: {name: 'Drag stick', icon: '👆', desc: 'Put a finger down anywhere and slide it left or right. Slide further to turn harder. Tap or flick up to jump. Works with a mouse too.',
+    how: 'Put a finger down and slide it left or right to steer (further = harder), tap or flick up to jump'},
+  tilt: {name: 'Tilt', icon: '📱', desc: 'Tilt your phone left or right like a steering wheel. Tap anywhere to jump.',
+    how: 'Tilt your phone left or right to steer, tap anywhere to jump'}
+};
+let trial = null; // while practising a scheme from the picker: {id}
+function controlScheme() { return trial ? trial.id : save.controls || 'buttons'; }
+const touchArea = renderer.domElement, sideTouch = new Map(); // pointer id -> -1 (left half) or 1 (right half)
+let drag = null; // the finger working the drag stick
+function syncSides() {
+  let l = false, r = false;
+  for (const side of sideTouch.values()) { if (side < 0) l = true; else r = true; }
+  input.left = l; input.right = r;
+  $('btnL').classList.toggle('on', l); $('btnR').classList.toggle('on', r);
+}
+function resetInput() {
+  input.left = input.right = input.kl = input.kr = false; input.axis = 0;
+  sideTouch.clear(); drag = null; $('stick').style.display = 'none';
+  $('btnL').classList.remove('on'); $('btnR').classList.remove('on');
+}
+const STICK_R = 60; // how far (px) you slide for a full turn
+touchArea.addEventListener('pointerdown', e => {
+  if (mode !== 'play' || paused) return;
+  const sc = controlScheme();
+  if (sc === 'buttons') return;
+  e.preventDefault();
+  if (sc === 'tilt') { doJump(); return; }
+  try { touchArea.setPointerCapture(e.pointerId); } catch (_) {} // keep getting this finger even over the HUD
+  if (sc === 'sides') { sideTouch.set(e.pointerId, e.clientX < innerWidth / 2 ? -1 : 1); syncSides(); return; }
+  if (drag) { doJump(); return; } // drag stick: a second finger jumps
+  const now = performance.now();
+  drag = {id: e.pointerId, x0: e.clientX, sx: e.clientX, sy: e.clientY, t0: now, fy: e.clientY, ft: now, moved: 0, flicked: false};
+  const st = $('stick'); st.style.left = e.clientX + 'px'; st.style.top = e.clientY + 'px'; st.firstChild.style.transform = ''; st.style.display = 'block';
+});
+touchArea.addEventListener('pointermove', e => {
+  if (sideTouch.has(e.pointerId)) { sideTouch.set(e.pointerId, e.clientX < innerWidth / 2 ? -1 : 1); syncSides(); return; }
+  if (!drag || drag.id !== e.pointerId) return;
+  const now = performance.now();
+  let dx = e.clientX - drag.x0;
+  if (Math.abs(dx) > STICK_R) { drag.x0 = e.clientX - Math.sign(dx) * STICK_R; dx = Math.sign(dx) * STICK_R; } // the stick follows your finger, so turning back is quick
+  input.axis = Math.abs(dx) < 6 ? 0 : clamp(dx / STICK_R, -1, 1);
+  drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy));
+  const st = $('stick'); st.style.left = drag.x0 + 'px'; st.firstChild.style.transform = 'translateX(' + dx + 'px)';
+  // flick up = jump: the finger moved up 45px within a quarter of a second
+  if (e.clientY > drag.fy || now - drag.ft > 250) { drag.fy = e.clientY; drag.ft = now; }
+  if (drag.fy - e.clientY > 45) { drag.flicked = true; drag.fy = e.clientY; drag.ft = now; doJump(); }
+});
+function pointerEnd(e) {
+  if (sideTouch.delete(e.pointerId)) { syncSides(); return; }
+  if (!drag || drag.id !== e.pointerId) return;
+  if (e.type === 'pointerup' && !drag.flicked && drag.moved < 12 && performance.now() - drag.t0 < 300) doJump(); // a quick tap jumps
+  drag = null; input.axis = 0; $('stick').style.display = 'none';
+}
+['pointerup', 'pointercancel'].forEach(ev => touchArea.addEventListener(ev, pointerEnd));
+touchArea.addEventListener('contextmenu', e => e.preventDefault());
+
+// Tilt: work out how far the screen's left/right edge is tipped down. Using the screen edge means it
+// feels the same whether the phone is held flat, upright, or sideways.
+const tiltSupported = typeof DeviceOrientationEvent !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+let tiltSeen = -1e9; // when we last got a tilt reading
+function screenAngle() {
+  const o = screen.orientation;
+  return o && typeof o.angle === 'number' ? o.angle : typeof window.orientation === 'number' ? window.orientation : 0;
+}
+addEventListener('deviceorientation', e => {
+  if (e.beta == null || e.gamma == null) return;
+  tiltSeen = performance.now();
+  if (controlScheme() !== 'tilt' || mode !== 'play' || paused) return;
+  const b = e.beta * DEG, g = e.gamma * DEG, th = screenAngle() * DEG;
+  const side = Math.cos(b) * Math.sin(g) * Math.cos(th) + Math.sin(b) * Math.sin(th); // sine of the tip: + = right side down
+  const DEAD = 0.05, FULL = 0.4; // about 3 degrees does nothing, about 24 degrees is a full turn
+  input.axis = Math.abs(side) < DEAD ? 0 : clamp((side - Math.sign(side) * DEAD) / (FULL - DEAD), -1, 1);
+});
+// iPhones (and some other browsers) make the player allow tilt first, and can only ask right after a tap.
+// Resolves true if allowed, or if tilt readings are already coming in anyway.
+function askTilt() {
+  const D = window.DeviceOrientationEvent, seen = () => performance.now() - tiltSeen < 1000;
+  if (!D || typeof D.requestPermission !== 'function') return Promise.resolve(true);
+  return D.requestPermission().then(r => r === 'granted' || seen(), seen);
+}
+
+// ---------- Control picker (shown once to everyone, and from Settings) ----------
+let ctlFromSettings = false;
+function openControls(fromSettings) {
+  if (fromSettings !== undefined) ctlFromSettings = fromSettings;
+  const first = !save.controls;
+  $('ctlTitle').textContent = first ? 'How do you want to steer?' : 'Controls';
+  $('ctlText').textContent = first ? 'There are new ways to steer your boat! Pick one, or tap "Try it" to practise with it first. You can change this any time in Settings.'
+    : 'Tap "Try it" to practise with a scheme, or "Choose" to use it.';
+  $('ctlBack').style.display = first ? 'none' : 'block'; // the first time, you have to pick one
+  const list = $('ctlList'); list.innerHTML = '';
+  for (const id of CONTROL_IDS) {
+    const c = CONTROLS[id], ok = id !== 'tilt' || tiltSupported, on = save.controls === id;
+    const box = document.createElement('div'); box.className = 'ctl' + (on ? ' sel' : '');
+    box.innerHTML = '<b>' + c.icon + ' ' + c.name + (on ? ' ✓' : '') + '</b><small>' + c.desc + (ok ? '' : ' (Needs a phone or tablet.)') + '</small>';
+    const row = document.createElement('div'); row.className = 'row';
+    const tryB = document.createElement('button'); tryB.className = 'big'; tryB.textContent = 'Try it'; tryB.disabled = !ok;
+    tryB.onclick = () => tryControls(id);
+    const pick = document.createElement('button'); pick.className = 'big green'; pick.textContent = on ? 'Chosen ✓' : 'Choose'; pick.disabled = !ok;
+    pick.onclick = () => chooseControls(id);
+    row.append(tryB, pick); box.appendChild(row); list.appendChild(box);
+  }
+  show('scrControls');
+}
+function tiltThen(id, f) {
+  if (id !== 'tilt') { f(); return; }
+  askTilt().then(ok => { if (ok) f(); else toast('Tilt is blocked. Allow motion access, or pick another'); });
+}
+function tryControls(id) { tiltThen(id, () => { trial = {id}; openReady(Math.min(save.beaten, 2)); }); }
+function chooseControls(id) {
+  tiltThen(id, () => {
+    save.controls = id; persist(); trial = null;
+    openMenu(); if (ctlFromSettings) openSettings();
+    toast('Controls: ' + CONTROLS[id].name);
+  });
+}
+// Leave practice and go back to the list
+function backToPicker() { trial = null; openMenu(); openControls(); }
+function trialOver(won) {
+  $('trialTitle').textContent = won ? 'Splash! 🎉' : 'Splat! 💥';
+  $('trialText').textContent = (won ? 'Nice steering with ' : 'Practice makes perfect! That was ') + CONTROLS[trial.id].name + '. This was just practice, so nothing changed.';
+  $('trialPick').textContent = 'Use ' + CONTROLS[trial.id].name;
+}
+$('trialPick').onclick = () => chooseControls(trial.id);
+$('trialAgain').onclick = retry;
+$('trialList').onclick = backToPicker;
+$('ctlBack').onclick = openSettings;
+
+// ---------- Settings ----------
+function openSettings() {
+  $('setMain').style.display = 'block'; $('setConfirm').style.display = 'none';
+  $('volMusic').value = Math.round(Sfx.musicVol() * 100); $('volSfx').value = Math.round(Sfx.sfxVol() * 100);
+  $('volMusicOut').textContent = $('volMusic').value + '%'; $('volSfxOut').textContent = $('volSfx').value + '%';
+  $('setCtlText').textContent = 'You steer with: ' + CONTROLS[save.controls || 'buttons'].name;
+  refreshSound(); show('scrSettings');
+}
+$('volMusic').addEventListener('input', () => { Sfx.init(); Sfx.setMusicVol($('volMusic').value / 100); $('volMusicOut').textContent = $('volMusic').value + '%'; });
+$('volSfx').addEventListener('input', () => { Sfx.init(); Sfx.setSfxVol($('volSfx').value / 100); $('volSfxOut').textContent = $('volSfx').value + '%'; });
+$('volSfx').addEventListener('change', () => Sfx.click()); // let go of the slider to hear how loud effects are
+$('mSettings').onclick = openSettings;
+$('setBack').onclick = () => show('scrMenu');
+$('setCtl').onclick = () => openControls(true);
+$('setWipe').onclick = () => { $('setMain').style.display = 'none'; $('setConfirm').style.display = 'block'; };
+$('wipeNo').onclick = openSettings;
+// Wipe everything this game saved on this device, then start fresh.
+$('wipeYes').onclick = () => {
+  wiped = true; Sfx.stopMusic();
+  try { Object.keys(localStorage).filter(k => k.startsWith('slideSplash.')).forEach(k => localStorage.removeItem(k)); } catch (e) {}
+  try { sessionStorage.removeItem(RESUME_KEY); } catch (e) {}
+  location.reload();
+};
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); });
 
 // ---------- Difficulty badge ----------
@@ -2437,7 +2689,7 @@ function openUpdate() {
   paused = true;
   const open = document.querySelector('.overlay.show');
   pauseFrom = {overlay: open ? open.id : null, controls: $('hud').style.display === 'flex'};
-  input.left = input.right = input.kl = input.kr = false; jumpQueued = false;
+  resetInput(); jumpQueued = false;
   Sfx.slide('off', 0); showControls(false);
   setUpdateCard('Checking for updates…', 'Your game is paused.', false, 'Keep playing');
   show('scrUpdate');
@@ -2459,7 +2711,7 @@ function closeUpdate() {
 function doUpdate() {
   persist();
   // reopen the level you were on (or the next one if you just won it) after the reload
-  const at = mode === 'won' ? levelIdx + 1 : mode === 'menu' ? -1 : levelIdx;
+  const at = trial || mode === 'menu' ? -1 : mode === 'won' ? levelIdx + 1 : levelIdx;
   try { sessionStorage.setItem(RESUME_KEY, String(at)); } catch (e) {}
   location.reload();
 }
@@ -2497,10 +2749,11 @@ try {
   if (r !== null) {
     sessionStorage.removeItem(RESUME_KEY);
     const at = parseInt(r, 10);
-    if (Number.isInteger(at) && at >= 0 && at <= save.beaten) openReady(at);
+    if (Number.isInteger(at) && at >= 0 && at <= save.beaten && save.controls) openReady(at);
     toast('Updated! Your stuff is saved.');
   }
 } catch (e) {}
+if (!save.controls) openControls(false); // first time (or first time since controls were added): pick how to steer
 requestAnimationFrame(frame);
 </script>
 </body>
