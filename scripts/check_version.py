@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """Fail if the game changed but its version number in index.html didn't go up.
 
-The version is the number in  id="gameVersion">Version N<  (shown in Settings).
-If index.html or music.mp3 differ from the base branch (main by default), N must
-be bigger than the base branch's N, so every change that ships gets a new number.
+The version is  id="gameVersion">Version T.B.S<  (shown in Settings):
+  T = total updates ever (the first release counts as 1)
+  B = how many of them were big changes (new features, modes, screens)
+  S = how many were small changes (fixes, tweaks, wording)
+so T always equals 1 + B + S. If index.html or music.mp3 differ from the base
+branch (main by default), the version must be one update ahead of the base:
+T + 1, and either B + 1 or S + 1.
 
 Usage:
   python3 scripts/check_version.py --staged   # pre-commit: what you're about to commit
@@ -17,7 +21,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GAME_FILES = ["index.html", "music.mp3"]
-VERSION = re.compile(r'id="gameVersion">Version (\d+)<')
+VERSION = re.compile(r'id="gameVersion">Version (\d+)\.(\d+)\.(\d+)<')
 
 
 def git(*args):
@@ -26,7 +30,11 @@ def git(*args):
 
 def version_of(html):
     m = VERSION.search(html or "")
-    return int(m.group(1)) if m else None
+    return tuple(int(g) for g in m.groups()) if m else None
+
+
+def show(v):
+    return ".".join(map(str, v))
 
 
 def main():
@@ -48,16 +56,26 @@ def main():
     else:
         new_html = (ROOT / "index.html").read_text(encoding="utf-8")
     new = version_of(new_html)
-    old = version_of(git("show", f"{base}:index.html").stdout) or 0
+    old = version_of(git("show", f"{base}:index.html").stdout)
 
     if new is None:
-        print('index.html: missing the version line  id="gameVersion">Version N<  in Settings.')
+        print('index.html: missing the version line  id="gameVersion">Version T.B.S<  in Settings.')
         return 1
-    if new <= old:
-        print(f"index.html: the game changed but the version is still {new} "
-              f"({base} has {old}). Change it to Version {old + 1}.")
+    t, b, s = new
+    if t != 1 + b + s:
+        print(f"index.html: Version {show(new)} doesn't add up: the first number must be "
+              f"1 + the other two ({1 + b + s}).")
         return 1
-    print(f"Version check passed (Version {new}, {base} has {old}).")
+    if old is not None:
+        ot, ob, os_ = old
+        big, small = (ot + 1, ob + 1, os_), (ot + 1, ob, os_ + 1)
+        if new not in (big, small):
+            print(f"index.html: the game changed, so the version must be one update past "
+                  f"{base}'s {show(old)}: Version {show(big)} for a big change or "
+                  f"{show(small)} for a small one (it says {show(new)}).")
+            return 1
+    print(f"Version check passed (Version {show(new)}, {base} has "
+          f"{show(old) if old else 'none'}).")
     return 0
 
 
